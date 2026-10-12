@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "id": "cpa-key-billing",
+      "name": "API Key Billing",
+      "description": "Downstream API key pricing, billing, and subscription quota enforcement, including Zed Cloud usage.",
+      "author": "yayuk-labs",
+      "repository": "https://github.com/yayuk-labs/cpa-plugin-key-billing",
+      "homepage": "https://github.com/yayuk-labs/cpa-plugin-key-billing",
+      "license": "MIT",
+      "tags": ["billing", "quota", "api-key"]
+    }
+  ]
+}
