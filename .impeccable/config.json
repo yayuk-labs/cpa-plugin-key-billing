@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "internal/plugin/web/ui.html"
+        ],
+        "createdAt": "2026-10-12T16:42:35.734Z",
+        "reason": "Agent: detector reports body/h1/h2 as 16px, but ui.html includes style.css with .app-title h1 at 22px and h2 at 15px, a 1.47x heading step."
+      }
+    ]
+  }
+}
