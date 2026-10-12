@@ -46,6 +46,7 @@ type QuotaBalance struct {
 type QuotaWindowView struct {
 	ID            string         `json:"id"`
 	Name          string         `json:"name"`
+	Models        []string       `json:"models,omitempty"`
 	PeriodSeconds int64          `json:"period_seconds"`
 	CycleAnchorAt time.Time      `json:"cycle_anchor_at,omitzero"`
 	Started       bool           `json:"started"`
@@ -65,6 +66,7 @@ type QuotaView struct {
 func (w QuotaWindow) view(cycle QuotaCycle) QuotaWindowView {
 	view := QuotaWindowView{
 		ID: w.ID, Name: w.Name, PeriodSeconds: w.PeriodSeconds, CycleAnchorAt: w.CycleAnchorAt,
+		Models:  slices.Clone(w.Models),
 		Started: !cycle.StartAt.IsZero(), StartAt: cycle.StartAt, EndAt: cycle.EndAt,
 		Dimensions: make([]QuotaBalance, 0, 3),
 	}
@@ -180,11 +182,13 @@ func (key *KeyState) ValidateCycles(plan Plan) error {
 }
 
 // Usage never starts a window or charges a replacement window with older usage.
-func (key *KeyState) chargeCycles(at time.Time, usage quotaUsage) {
+func (key *KeyState) chargeCycles(plan Plan, model string, at time.Time, usage quotaUsage) {
 	if key.PlanID == "" || at.IsZero() {
 		return
 	}
-	for id, cycle := range key.Cycles {
+	for _, window := range plan.modelWindows(model) {
+		id := window.ID
+		cycle := key.Cycles[id]
 		if cycle.PlanID != key.PlanID || at.Before(cycle.StartAt) || at.Before(cycle.UsageSince) || !at.Before(cycle.EndAt) {
 			continue
 		}

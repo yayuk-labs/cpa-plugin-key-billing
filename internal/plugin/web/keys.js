@@ -181,7 +181,7 @@ function renderKeys() {
                 "data-tip": m("ui.removed_from_cpa_configuration_on_value", { v0: new Date(view.deleted_at).toLocaleString(locale()) })
               })
             : view.blocked
-              ? el("span", { class: "tag bad", text: m("ui.quota_exhausted") })
+              ? el("span", { class: "tag bad", text: quotaBlockedLabel(view) })
               : el("span", { class: "tag " + (view.unlimited ? "plain" : "ok"), text: view.unlimited ? m("ui.unlimited") : m("ui.active") })
         ),
         el(

@@ -24,6 +24,7 @@ type QuotaWindow struct {
 	AmountUSD     float64   `json:"amount_usd"`
 	TokenLimit    int64     `json:"token_limit"`
 	RequestLimit  int64     `json:"request_limit"`
+	Models        []string  `json:"models,omitempty"`
 	CycleAnchorAt time.Time `json:"cycle_anchor_at,omitzero"`
 }
 
@@ -43,6 +44,11 @@ func (p Plan) Validate() error {
 	names := make(map[string]bool)
 	periods := make(map[int64]bool)
 	for _, window := range p.Windows {
+		for _, model := range window.Models {
+			if strings.TrimSpace(model) == "" || len(model) > maxRouteValueBytes {
+				return invalidf("Window %q: model IDs must be non-empty and must not exceed %d bytes", window.Name, maxRouteValueBytes)
+			}
+		}
 		if window.ID == "" || ids[window.ID] {
 			return invalidf("Invalid or duplicate quota window ID")
 		}
@@ -84,6 +90,11 @@ func prepareWindows(windows, existing []QuotaWindow, now time.Time) ([]QuotaWind
 	for i := range windows {
 		window := &windows[i]
 		window.Name = strings.TrimSpace(window.Name)
+		models, err := normalizeRouteStrings(window.Models)
+		if err != nil {
+			return nil, invalidf("Window %q: model IDs must be non-empty and must not exceed %d bytes", window.Name, maxRouteValueBytes)
+		}
+		window.Models = models
 		oldIndex := slices.IndexFunc(existing, func(old QuotaWindow) bool { return old.ID == window.ID })
 		if window.ID == "" {
 			var id [16]byte
@@ -121,7 +132,23 @@ func (w QuotaWindow) sameSchedule(other QuotaWindow) bool {
 
 func clonePlan(plan Plan) Plan {
 	plan.Windows = slices.Clone(plan.Windows)
+	for i := range plan.Windows {
+		plan.Windows[i].Models = slices.Clone(plan.Windows[i].Models)
+	}
 	return plan
+}
+
+// Explicit selections take precedence over every fallback window in the plan.
+func (p Plan) modelWindows(model string) []QuotaWindow {
+	model = strings.TrimSpace(model)
+	selected := slices.ContainsFunc(p.Windows, func(w QuotaWindow) bool { return containsRouteValue(w.Models, model) })
+	windows := make([]QuotaWindow, 0, len(p.Windows))
+	for _, window := range p.Windows {
+		if containsRouteValue(window.Models, model) || !selected && len(window.Models) == 0 {
+			windows = append(windows, window)
+		}
+	}
+	return windows
 }
 
 func (s *State) FindPlan(id string) (Plan, bool) {

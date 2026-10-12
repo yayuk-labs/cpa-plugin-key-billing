@@ -25,7 +25,7 @@ function renderAccountSubscription() {
   $("account-plan-status").className = "tag " + (subscription.blocked ? "bad" : "plain");
   setText(
     $("account-plan-status"),
-    !data.value ? "" : subscription.unlimited ? m("ui.unlimited") : subscription.blocked ? m("ui.quota_exhausted") : m("ui.active")
+    !data.value ? "" : subscription.unlimited ? m("ui.unlimited") : subscription.blocked ? quotaBlockedLabel(subscription) : m("ui.active")
   );
   const target = $("account-windows");
   if (renderDataPending(target, [data], m("ui.loading_subscription_status"))) return;

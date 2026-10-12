@@ -304,6 +304,7 @@ def refresh_key_quota(key):
                           ("tokens", window.get("token_limit", 0), cycle.get("used_tokens", 0)),
                           ("requests", window.get("request_limit", 0), cycle.get("used_requests", 0))] if limit > 0]
         view = dict(id=window["id"], name=window["name"], period_seconds=window["period_seconds"],
+                    models=window.get("models", []),
                     started=started, blocked=any(dimension["blocked"] for dimension in dimensions),
                     dimensions=dimensions)
         if window.get("cycle_anchor_at"):

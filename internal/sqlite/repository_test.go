@@ -221,6 +221,7 @@ func TestQuotaConfigurationExtendsExistingJSON(t *testing.T) {
 	}
 	state.Plans[0].Windows[0].TokenLimit = tokenLimit
 	state.Plans[0].Windows[0].RequestLimit = 100
+	state.Plans[0].Windows[0].Models = []string{"gpt-6-luna", "gpt-5.6-luna"}
 	cycle.UsedTokens, cycle.UsedRequests = tokenLimit, 7
 	state.Keys["dummy-scope"].Cycles["w"] = cycle
 	state.Plans[0].Windows = append(state.Plans[0].Windows,

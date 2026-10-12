@@ -127,7 +127,7 @@ func TestRecoveredWriteIncludesPendingRequestEvents(t *testing.T) {
 		}}}
 		state.Keys["scope-a"] = &KeyState{PlanID: "p"}
 	})
-	store.Authorize("scope-a", now)
+	store.Authorize("scope-a", now, "")
 	repo.fail = errors.New("disk full")
 	store.RecordUsage(subsetEvent("scope-a", now))
 	store.RecordUsage(subsetEvent("scope-a", now.Add(time.Minute)))

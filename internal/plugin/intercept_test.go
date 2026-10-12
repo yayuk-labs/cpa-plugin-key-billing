@@ -61,6 +61,53 @@ func TestInterceptTerminatesAnExhaustedKey(t *testing.T) {
 	}
 }
 
+func TestInterceptModelQuotaPersistsAndUsesUsageAlias(t *testing.T) {
+	app, path := newAppWithPriceAndState(t, true)
+	if _, err := app.store.SyncKeys([]string{testAPIKey}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.store.UpsertPrice(billing.CustomPrice{ModelID: "other-model", PriceRates: billing.PriceRates{InputPer1M: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := app.store.CreatePlanWithBindings(billing.Plan{ID: "p", Windows: []billing.QuotaWindow{
+		{Name: "Selected", Models: []string{"gpt-5.5"}, RequestLimit: 1, PeriodSeconds: 86400},
+		{Name: "Fallback", RequestLimit: 10, PeriodSeconds: 30 * 86400},
+	}}, []string{flowScope()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response := callIntercept(t, app, "openai"); response.Terminate {
+		t.Fatalf("initial admission refused: %+v", response)
+	}
+	publishUsageRecord(t, app, UsageRecord{APIKey: testAPIKey, Model: "provider-name", Alias: "gpt-5.5(high)", RequestedAt: app.store.Now()})
+	app.Shutdown()
+	reopened := newTestApp(t)
+	defer reopened.Shutdown()
+	if _, err := reopened.HandleMethod(MethodPluginRegister, mustMarshal(t, LifecycleRequest{
+		ConfigYAML: []byte("enabled: true\nstate_file: " + path + "\n"),
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if response := callIntercept(t, reopened, "openai"); response.StatusCode != 429 {
+		t.Fatalf("selected quota not preserved after restart: %+v", response)
+	}
+	raw, err := reopened.HandleMethod(MethodRequestInterceptBefore, mustMarshal(t, RequestInterceptRequest{
+		SourceFormat: "openai", Model: "other-model", Metadata: map[string]any{MetadataCallerScope: flowScope()},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response RequestInterceptResponse
+	decodeResult(t, raw, &response)
+	if response.Terminate {
+		t.Fatalf("selected exhaustion blocked fallback model: %+v", response)
+	}
+	view, ok := reopened.store.KeyViewForScope(flowScope())
+	if !ok || len(view.Windows) != 2 || view.Windows[0].Dimensions[0].Used != "1" || view.Windows[1].Dimensions[0].Used != "0" {
+		t.Fatalf("usage alias selected wrong quota: %+v", view)
+	}
+}
+
 // The type and code are the ones CLIProxyAPI derives from the status, so a
 // client branching on them cannot tell whether the proxy or the plugin refused.
 // Anthropic routes get the proxy's own envelope; every other format, Gemini

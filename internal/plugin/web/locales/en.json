@@ -682,5 +682,11 @@
   "ui.cache_rate": "Cache rate",
   "ui.quota": "Quota",
   "ui.quota_reset_elapsed": "Reset time reached",
-  "ui.auth_request_outcomes": "Succeeded: {v0} · Failed: {v1}"
+  "ui.auth_request_outcomes": "Succeeded: {v0} · Failed: {v1}",
+  "quota.other_models": "All models except selections in other windows",
+  "quota.models_value": "Models: {value}",
+  "quota.models_help": "Selected models share this window’s budget. Leave empty to cover models not selected in other windows. If a model is selected in multiple windows, all matching limits apply. Model changes keep existing usage and reset times.",
+  "quota.model_quota_exhausted": "Some model quotas exhausted",
+  "quota.no_matching_models": "No matching models",
+  "backend.window_value_model_ids_must_be_non_empty_and_must_not_exceed_value_bytes": "Window {v0}: model IDs must be non-empty and must not exceed {v1} bytes"
 }

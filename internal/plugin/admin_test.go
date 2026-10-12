@@ -126,9 +126,9 @@ func TestPlansCRUDThroughTheManagementAPI(t *testing.T) {
 	}
 	callOK(t, app, http.MethodPost, routePlans, nil, map[string]any{
 		"name":    "Team Monthly",
-		"windows": []billing.QuotaWindow{{Name: "额度", AmountUSD: 20, PeriodSeconds: 2592000, CycleAnchorAt: anchor}},
+		"windows": []billing.QuotaWindow{{Name: "额度", AmountUSD: 20, PeriodSeconds: 2592000, CycleAnchorAt: anchor, Models: []string{" gpt-5.5 "}}},
 	}, http.StatusCreated, &created)
-	if created.Plan.ID != "team-monthly" || created.Plan.Windows[0].PeriodSeconds != 2592000 || !created.Plan.Windows[0].CycleAnchorAt.Equal(anchor) {
+	if created.Plan.ID != "team-monthly" || created.Plan.Windows[0].PeriodSeconds != 2592000 || !created.Plan.Windows[0].CycleAnchorAt.Equal(anchor) || len(created.Plan.Windows[0].Models) != 1 || created.Plan.Windows[0].Models[0] != "gpt-5.5" {
 		t.Fatalf("plan = %+v", created.Plan)
 	}
 
@@ -190,7 +190,7 @@ func TestKeyResetAcceptsScopeList(t *testing.T) {
 				"scopes": scopes,
 			}, http.StatusCreated, nil)
 			for _, scope := range scopes {
-				if decision := app.store.Authorize(scope, time.Now()); !decision.Allowed {
+				if decision := app.store.Authorize(scope, time.Now(), ""); !decision.Allowed {
 					t.Fatalf("Authorize(%q) = %+v", scope, decision)
 				}
 			}
@@ -785,7 +785,7 @@ func TestManagementWriteFailureReturnsError(t *testing.T) {
 	if _, err := app.store.CreatePlanWithBindings(billing.Plan{ID: "p", Windows: []billing.QuotaWindow{{Name: "额度", AmountUSD: 10, PeriodSeconds: 3600}}}, []string{scope}); err != nil {
 		t.Fatal(err)
 	}
-	app.store.Authorize(scope, app.store.Now())
+	app.store.Authorize(scope, app.store.Now(), "")
 	before, _ := app.store.KeyViewForScope(scope)
 	database, err := sql.Open("sqlite3", path)
 	if err != nil {

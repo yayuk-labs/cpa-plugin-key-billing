@@ -682,5 +682,11 @@
   "ui.cache_rate": "缓存率",
   "ui.quota": "额度",
   "ui.quota_reset_elapsed": "已到重置时间",
-  "ui.auth_request_outcomes": "成功：{v0} · 失败：{v1}"
+  "ui.auth_request_outcomes": "成功：{v0} · 失败：{v1}",
+  "quota.other_models": "所有模型（不含其他窗口已选择的模型）",
+  "quota.models_value": "模型：{value}",
+  "quota.models_help": "所选模型共享此窗口额度。留空时覆盖其他窗口未选择的模型。一个模型被多个窗口选择时，所有匹配窗口的限制均生效。修改模型保留当前用量和重置时间。",
+  "quota.model_quota_exhausted": "部分模型额度已耗尽",
+  "quota.no_matching_models": "没有匹配的模型",
+  "backend.window_value_model_ids_must_be_non_empty_and_must_not_exceed_value_bytes": "窗口 {v0}：模型 ID 不能为空且不能超过 {v1} 字节"
 }

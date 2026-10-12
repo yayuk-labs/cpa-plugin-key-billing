@@ -890,6 +890,11 @@ body.embedded .standalone-actions { display: none; }
 .plan-details input, .plan-details select, .plan-window input { width: 100%; min-width: 0; }
 .plan-window.unified { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr); }
 .plan-window-limits { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 10px; }
+.plan-window-models { grid-column: 1 / -1; min-width: 0; }
+.plan-window-models summary, .quota-model-label { overflow-wrap: anywhere; }
+.plan-window-models summary { cursor: pointer; }
+.plan-window-models .selection-list { margin-top: 8px; max-height: 180px; }
+.plan-window-models .selection-list input { width: auto; }
 .period-input { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
 .plan-window .window-delete {
   position: absolute;

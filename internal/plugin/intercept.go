@@ -126,7 +126,7 @@ func (a *App) interceptBeforeAuth(raw []byte) ([]byte, error) {
 	// Reference price refresh may have taken time. Quota and Retry-After share the
 	// current instant, rather than the instant before the download.
 	now := a.store.Now()
-	decision := a.store.Authorize(scope, now)
+	decision := a.store.Authorize(scope, now, model)
 	if !decision.Allowed {
 		a.store.ReportQuotaBlock(scope, endpoint, decision)
 		return OKEnvelope(quotaExhaustedResponse(req.SourceFormat, decision, now))

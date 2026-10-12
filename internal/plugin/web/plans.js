@@ -29,6 +29,12 @@ const QUOTA_DIMENSIONS = [
 ];
 const PERIOD_UNITS = [[86400, m("ui.days")], [3600, m("ui.hours")], [60, m("ui.minutes")], [1, m("ui.seconds")]];
 
+function quotaModelLabel(window) { return window.models?.length ? window.models.join(", ") : m("quota.other_models"); }
+
+function quotaBlockedLabel(view) {
+  return view.windows.some((window) => window.models?.length) ? m("quota.model_quota_exhausted") : m("ui.quota_exhausted");
+}
+
 function renderPlans() {
   if (renderDataPending($("plans-body"), [resources.admin.plans, resources.admin.keys], m("ui.loading"), "empty section-loading")) return;
   const plans = resources.admin.plans.value.map((plan) => ({
@@ -51,6 +57,7 @@ function renderPlans() {
           quotas.append(el("span", { class: "small muted", text: m("ui.next_reset_value", { v0: when(nextCycleStart(window)) }) }));
         const field = settingsEntryField(window.name + DISPLAY_SEPARATOR + periodLabel(window.period_seconds), quotas);
         field.classList.add("plan-window-summary");
+        quotas.append(el("span", { class: "small muted quota-model-label", text: quotaModelLabel(window) }));
         return field;
       });
       return settingsCard(
@@ -120,6 +127,7 @@ function renderQuotaWindows(view, account = false) {
       return el(
         "div",
         { class: "quota-window" + (single ? " quota-single" : "") },
+        el("span", { class: "small muted quota-model-label", text: quotaModelLabel(window) }),
         single ? null : el("div", { class: "quota-title" }, el("b", { text: displayLabel(window.name) }), reset),
         dimensions.map((balance) => {
           const metric = QUOTA_DIMENSIONS.find((item) => item.metric === balance.metric);
@@ -535,11 +543,60 @@ function addPlanWindow(quotaWindow = {}) {
         });
         return field(metric.inputLabel, input);
       })
-    )
+    ),
+    planModelPicker(row, quotaWindow.models || [])
   );
   $("plan-windows").append(row);
   syncPlanWindows();
   return row;
+}
+
+function planModelPicker(row, models) {
+  const selected = new Map(models.map((model) => [model.toLowerCase(), { value: model }]));
+  const summary = el("summary");
+  const update = () => {
+    row.dataset.models = JSON.stringify(selectedRouteValues({ model: selected }, "model"));
+    setText(summary, m("quota.models_value", { value: quotaModelLabel({ models: JSON.parse(row.dataset.models) }) }));
+  };
+  const list = el("div", { class: "selection-list" });
+  const search = el("input", { type: "search", placeholder: m("ui.search_models"), "aria-label": m("ui.search_models") });
+  const render = () => {
+    const choices = routeModelChoices({ model: selected }, editors.get($("plan-dialog")).data.models, search.value.trim().toLowerCase());
+    list.replaceChildren(
+      ...choices.map((item) =>
+        el(
+          "label",
+          {},
+          checkboxControl({
+            input: el("input", {
+              type: "checkbox",
+              value: item.value,
+              checked: selected.has(item.value.toLowerCase()),
+              onchange: (event) => {
+                if (event.target.checked) selected.set(item.value.toLowerCase(), { value: item.value });
+                else selected.delete(item.value.toLowerCase());
+                update();
+              }
+            })
+          }),
+          el("span", { text: item.label }),
+          item.note ? el("span", { class: "small muted", text: item.note }) : null
+        )
+      )
+    );
+    if (!choices.length) list.append(el("div", { class: "empty", text: m("quota.no_matching_models") }));
+  };
+  search.oninput = render;
+  update();
+  render();
+  return el(
+    "details",
+    { class: "plan-window-models" },
+    summary,
+    el("p", { class: "small muted", text: m("quota.models_help") }),
+    search,
+    list
+  );
 }
 
 function renderPlanKeyList(planID, data) {
@@ -627,6 +684,7 @@ function planFromForm() {
       ...(row.dataset.id ? { id: row.dataset.id } : {}),
       name,
       ...limits,
+      models: JSON.parse(row.dataset.models),
       period_seconds: seconds,
       ...(anchor ? { cycle_anchor_at: anchor } : {})
     };

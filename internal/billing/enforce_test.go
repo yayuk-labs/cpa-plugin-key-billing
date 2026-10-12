@@ -26,7 +26,7 @@ func TestQuotaWindowSchedules(t *testing.T) {
 				state.Keys["later"] = &KeyState{PlanID: "p"}
 			})
 			for _, scope := range []string{"", "unknown"} {
-				if !store.Authorize(scope, now).Allowed {
+				if !store.Authorize(scope, now, "").Allowed {
 					t.Fatal("unknown key blocked")
 				}
 			}
@@ -34,17 +34,17 @@ func TestQuotaWindowSchedules(t *testing.T) {
 			if view.Windows[0].Started != unified || len(store.state.Keys["s"].Cycles) != 0 {
 				t.Fatal("quota display changed activation")
 			}
-			first := store.Authorize("s", now)
+			first := store.Authorize("s", now, "")
 			if !first.Allowed || !first.Windows[0].StartAt.Equal(first.Windows[1].StartAt) {
 				t.Fatalf("first admission: %+v", first)
 			}
-			later := store.Authorize("later", now.Add(30*time.Minute))
+			later := store.Authorize("later", now.Add(30*time.Minute), "")
 			if later.Windows[0].EndAt.Equal(first.Windows[0].EndAt) != unified {
 				t.Fatalf("second key schedule: %+v", later)
 			}
 			store.RecordUsage(subsetEvent("s", now))
-			blocked := store.Authorize("s", now)
-			if blocked.Allowed || !blocked.RetryAt.Equal(now.Add(2*time.Hour)) || !store.Authorize("later", now.Add(30*time.Minute)).Allowed {
+			blocked := store.Authorize("s", now, "")
+			if blocked.Allowed || !blocked.RetryAt.Equal(now.Add(2*time.Hour)) || !store.Authorize("later", now.Add(30*time.Minute), "").Allowed {
 				t.Fatalf("independent balances: %+v", blocked)
 			}
 			for _, w := range blocked.Windows {
@@ -59,12 +59,12 @@ func TestQuotaWindowSchedules(t *testing.T) {
 			if view.Windows[0].Started != unified || !view.Windows[1].Blocked {
 				t.Fatalf("expiry view: %+v", view)
 			}
-			blocked = store.Authorize("s", store.Now())
+			blocked = store.Authorize("s", store.Now(), "")
 			if blocked.Allowed || blocked.Windows[0].Started != unified || !blocked.Windows[1].Blocked || len(store.state.Keys["s"].Cycles) != 1 {
 				t.Fatalf("short expiry while blocked: %+v", blocked)
 			}
 			at := now.Add(10*time.Hour + 17*time.Minute)
-			next := store.Authorize("s", at)
+			next := store.Authorize("s", at, "")
 			wantStart := at
 			if unified {
 				wantStart = now.Add(10 * time.Hour)
@@ -76,7 +76,7 @@ func TestQuotaWindowSchedules(t *testing.T) {
 				t.Fatal(err)
 			}
 			boundary := next.Windows[1].EndAt
-			store.Authorize("s", boundary)
+			store.Authorize("s", boundary, "")
 			if !store.state.Keys["s"].Cycles["long"].StartAt.Equal(boundary) {
 				t.Fatal("boundary did not start next cycle")
 			}
@@ -102,14 +102,14 @@ func TestQuotaWindowsWithDifferentDimensions(t *testing.T) {
 	for hour := range 4 {
 		at := now.Add(time.Duration(hour) * time.Hour)
 		store.now = func() time.Time { return at }
-		before := store.Authorize("s", at)
+		before := store.Authorize("s", at, "")
 		if !before.Allowed || before.Windows[0].Dimensions[0].Used != "0" || before.Windows[1].Dimensions[0].Used.String() != strconv.Itoa((hour%2)*1500) {
 			t.Fatalf("hour %d: windows did not reset independently: %+v", hour, before)
 		}
 		spent, _ := before.Windows[2].Dimensions[0].Used.Float64()
 		assertClose(t, "amount carried across shorter windows", spent, float64(hour)*wantSubsetCost)
 		store.RecordUsage(subsetEvent("s", at))
-		after := store.Authorize("s", at)
+		after := store.Authorize("s", at, "")
 		if after.Allowed || !after.Windows[0].Blocked || after.Windows[1].Blocked != (hour%2 == 1) || after.Windows[2].Blocked != (hour == 3) {
 			t.Fatalf("hour %d: dimension enforcement interfered: %+v", hour, after)
 		}
@@ -122,12 +122,12 @@ func TestQuotaWindowsWithDifferentDimensions(t *testing.T) {
 		}
 	}
 	store.now = func() time.Time { return now.Add(4 * time.Hour) }
-	blocked := store.Authorize("s", store.Now())
+	blocked := store.Authorize("s", store.Now(), "")
 	if blocked.Allowed || blocked.Windows[0].Started || blocked.Windows[1].Started || !blocked.Windows[2].Blocked {
 		t.Fatalf("short window reset bypassed the amount limit: %+v", blocked)
 	}
 	store.now = func() time.Time { return now.Add(24 * time.Hour) }
-	restored := store.Authorize("s", store.Now())
+	restored := store.Authorize("s", store.Now(), "")
 	if !restored.Allowed || restored.Windows[0].Dimensions[0].Used != "0" || restored.Windows[1].Dimensions[0].Used != "0" || restored.Windows[2].Dimensions[0].Used != "0" {
 		t.Fatalf("windows did not recover after all exhausted quotas reset: %+v", restored)
 	}

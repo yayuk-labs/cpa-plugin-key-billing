@@ -2,9 +2,46 @@ package billing
 
 import (
 	"math"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
+
+	"cpa-key-billing/internal/messages"
 )
+
+func TestPlanModelSelectionsRetainUsageAndOwnTheirData(t *testing.T) {
+	store, _, now := quotaStore(t, QuotaWindow{AmountUSD: 10})
+	store.RecordUsage(subsetEvent("s", now))
+	before := currentQuotaCycle(t, store)
+	windows := store.Plans()[0].Windows
+	windows[0].Models = []string{" gpt-5.5 ", "GPT-5.5", "gpt-6-luna"}
+	updated, err := store.UpdatePlanWithBindings(PlanPatch{ID: "p", Windows: &windows}, nil)
+	if err != nil || !reflect.DeepEqual(updated.Windows[0].Models, []string{"gpt-5.5", "gpt-6-luna"}) {
+		t.Fatalf("model selection not normalized: %+v, %v", updated, err)
+	}
+	if after := currentQuotaCycle(t, store); after != before {
+		t.Fatalf("model edit changed usage or schedule: %+v, want %+v", after, before)
+	}
+	windows[0].Models[0] = "mutated-input"
+	updated.Windows[0].Models[0] = "mutated-output"
+	views := store.Authorize("s", now, "gpt-5.5")
+	views.Windows[0].Models[0] = "mutated-view"
+	if models := store.Plans()[0].Windows[0].Models; !reflect.DeepEqual(models, []string{"gpt-5.5", "gpt-6-luna"}) {
+		t.Fatalf("caller mutated stored model selections: %+v", models)
+	}
+	for _, invalid := range []string{"", " ", strings.Repeat("m", maxRouteValueBytes+1)} {
+		windows = store.Plans()[0].Windows
+		windows[0].Models = []string{invalid}
+		_, err := store.UpdatePlanWithBindings(PlanPatch{ID: "p", Windows: &windows}, nil)
+		if err == nil {
+			t.Fatalf("invalid model ID accepted: %q", invalid)
+		}
+		if detail := messages.FromError(err); detail.Key != "backend.window_value_model_ids_must_be_non_empty_and_must_not_exceed_value_bytes" {
+			t.Fatalf("model validation missing translation metadata: %+v", detail)
+		}
+	}
+}
 
 func TestQuotaWindowsValidationAndIdentity(t *testing.T) {
 	now := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)

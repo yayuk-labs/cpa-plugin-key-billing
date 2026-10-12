@@ -77,6 +77,13 @@
       "%q"
     ]
   },
+  "Window %q: model IDs must be non-empty and must not exceed %d bytes": {
+    "key": "backend.window_value_model_ids_must_be_non_empty_and_must_not_exceed_value_bytes",
+    "formats": [
+      "%q",
+      "%d"
+    ]
+  },
   "Window %q: amount quota must be a finite non-negative number": {
     "key": "backend.window_value_amount_quota_must_be_a_finite_non_negative_number",
     "formats": [

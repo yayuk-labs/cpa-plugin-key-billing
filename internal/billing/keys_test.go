@@ -140,14 +140,14 @@ func TestSyncKeysRestoresQuotaAndBindings(t *testing.T) {
 				if !key.InConfig || !key.DeletedAt.IsZero() || key.PlanID != "p" || key.Cycles["default"] != cycle {
 					t.Fatalf("restored key = %+v, want original binding and cycle %+v", key, cycle)
 				}
-				if store.Authorize(scope, now).Allowed {
+				if store.Authorize(scope, now, "").Allowed {
 					t.Fatal("restoring a key replenished its quota")
 				}
 				if len(mustRequestEvents(t, store, RequestEventQuery{}).Entries) != 1 {
 					t.Fatal("request history was lost")
 				}
 				now = now.Add(time.Hour)
-				if allowed := store.Authorize(scope, now).Allowed; allowed != (period == 3600) {
+				if allowed := store.Authorize(scope, now, "").Allowed; allowed != (period == 3600) {
 					t.Fatalf("allowed after an hour = %v for period %d", allowed, period)
 				}
 			})
@@ -276,7 +276,7 @@ func TestWindowEditsAndQuotaReset(t *testing.T) {
 			if _, err := store.UpdatePlanWithBindings(PlanPatch{ID: plan.ID, Windows: &plan.Windows}, nil); err != nil {
 				t.Fatal(err)
 			}
-			if store.Authorize("live", now).Allowed {
+			if store.Authorize("live", now, "").Allowed {
 				t.Fatal("lowered amount did not block")
 			}
 			plan.Windows[0].PeriodSeconds = 7200
@@ -321,7 +321,7 @@ func TestWindowEditsAndQuotaReset(t *testing.T) {
 			}
 
 			if unified {
-				store.Authorize("live", now)
+				store.Authorize("live", now, "")
 				changed := append([]QuotaWindow(nil), updated.Windows...)
 				changed[0].CycleAnchorAt = now.Add(45 * time.Minute)
 				if _, err := store.UpdatePlanWithBindings(PlanPatch{ID: plan.ID, Windows: &changed}, nil); err != nil {

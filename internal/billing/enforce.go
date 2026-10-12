@@ -12,7 +12,7 @@ type Decision struct {
 	QuotaView
 }
 
-func (s *Store) Authorize(scope string, at time.Time) Decision {
+func (s *Store) Authorize(scope string, at time.Time, model string) Decision {
 	allowed := Decision{Allowed: true}
 	scope = strings.TrimSpace(scope)
 	if scope == "" {
@@ -36,6 +36,7 @@ func (s *Store) Authorize(scope string, at time.Time) Decision {
 		if settleExpiredCycles(key, at) {
 			changed = touched
 		}
+		plan.Windows = plan.modelWindows(state.ResolveBillingModel(model, model))
 		view := quotaView(key, plan, at)
 		if !view.Blocked && activateCycles(key, plan, at) {
 			changed = touched

@@ -37,7 +37,7 @@ func subsetEvent(scope string, at time.Time) UsageEvent {
 }
 
 func admittedEvent(store *Store, scope string, at time.Time) UsageEvent {
-	store.Authorize(scope, at)
+	store.Authorize(scope, at, "")
 	return subsetEvent(scope, at)
 }
 
@@ -147,8 +147,8 @@ func TestUsageRequestTimesPreserveWindowAttribution(t *testing.T) {
 		}}}
 		state.Keys["scope-a"] = &KeyState{PlanID: "p"}
 	})
-	store.Authorize("scope-a", start)
-	store.Authorize("scope-a", start.Add(2*time.Hour))
+	store.Authorize("scope-a", start, "")
+	store.Authorize("scope-a", start.Add(2*time.Hour), "")
 	event := subsetEvent("scope-a", start.Add(150*time.Minute))
 	wantShort := QuotaCycle{PlanID: "p", StartAt: start.Add(2 * time.Hour), EndAt: start.Add(3 * time.Hour)}
 	wantLong := QuotaCycle{PlanID: "p", StartAt: start, EndAt: start.Add(24 * time.Hour),
@@ -196,7 +196,7 @@ func TestUsageAfterAdministrativeChange(t *testing.T) {
 					}
 					state.Keys["scope-a"] = &KeyState{PlanID: "daily"}
 				})
-				store.Authorize("scope-a", now)
+				store.Authorize("scope-a", now, "")
 				store.RecordUsage(subsetEvent("scope-a", start))
 				now = start.Add(time.Hour)
 				var err error
@@ -223,7 +223,7 @@ func TestUsageAfterAdministrativeChange(t *testing.T) {
 				if store.state.Keys["scope-a"].Cycles["default"].SpentUSD != 0 {
 					t.Fatal("old completion restored cleared usage")
 				}
-				store.Authorize("scope-a", now)
+				store.Authorize("scope-a", now, "")
 				before := store.state.Keys["scope-a"].Cycles["default"]
 				store.RecordUsage(late)
 				if after := store.state.Keys["scope-a"].Cycles["default"]; after != before {
