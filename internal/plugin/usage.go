@@ -90,9 +90,8 @@ func usageBreakdown(record UsageRecord) billing.TokenBreakdown {
 	}
 }
 
-// Keep this marker order byte-for-byte equivalent to CLIProxyAPI's current
-// sdk/cliproxy/usage classifier. OpenAI-compatible executors win before any
-// provider substring classification.
+// Keep built-in marker order aligned with CLIProxyAPI's sdk/cliproxy/usage
+// classifier. OpenAI-compatible executors win before provider substrings.
 func usageSemantics(provider, executorType string) tokenSemantics {
 	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
 	normalizedExecutor := strings.ToLower(strings.TrimSpace(executorType))
@@ -102,6 +101,10 @@ func usageSemantics(provider, executorType string) tokenSemantics {
 	}
 	if normalizedExecutor == "openaicompatexecutor" || normalizedProvider == "openai-compatibility" ||
 		strings.HasPrefix(normalizedProvider, "openai-compatible-") {
+		return tokenSemanticsSubset
+	}
+	// cpa-zed-provider translates every upstream into Chat Completions usage.
+	if normalizedProvider == "zed" {
 		return tokenSemanticsSubset
 	}
 	if strings.Contains(value, "claude") || strings.Contains(value, "anthropic") {

@@ -2,8 +2,8 @@
   <h1>CPA Key Billing</h1>
   <p><strong><a href="https://github.com/router-for-me/CLIProxyAPI">CLIProxyAPI</a> 下游 API Key 计费与订阅额度插件。</strong></p>
   <p>
-    <a href="https://github.com/haowang02/cpa-plugin-key-billing/releases/latest"><img src="https://img.shields.io/github/v/release/haowang02/cpa-plugin-key-billing?label=release" alt="Latest release"></a>
-    <a href="https://github.com/haowang02/cpa-plugin-key-billing/actions/workflows/check.yml"><img src="https://github.com/haowang02/cpa-plugin-key-billing/actions/workflows/check.yml/badge.svg" alt="CI status"></a>
+    <a href="https://github.com/yayuk-labs/cpa-plugin-key-billing/releases/latest"><img src="https://img.shields.io/github/v/release/yayuk-labs/cpa-plugin-key-billing?label=release" alt="Latest release"></a>
+    <a href="https://github.com/yayuk-labs/cpa-plugin-key-billing/actions/workflows/check.yml"><img src="https://github.com/yayuk-labs/cpa-plugin-key-billing/actions/workflows/check.yml/badge.svg" alt="CI status"></a>
     <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-blue" alt="Platforms: Windows, macOS, and Linux">
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   </p>
@@ -54,20 +54,28 @@ flowchart TB
 
 ### 商店安装
 
-CPA 管理面板（CPAMC 或 CPAMP）插件商店搜索 `cpa-key-billing`。
+此分支使用自定义商店源，在 CPA 配置的 `plugins.store-sources` 中添加：
+
+```yaml
+plugins:
+  store-sources:
+    - "https://raw.githubusercontent.com/yayuk-labs/cpa-plugin-key-billing/main/registry.json"
+```
+
+在该来源中选择 **API Key Billing**（`cpa-key-billing`）。Fork 发布 GitHub Release 后才能安装；现有发布工作流已生成 CPA 所需的 ZIP 和校验文件，商店跟随最新发布版本。已有上游商店安装若提示来源冲突，切换来源时须保留插件配置和计费数据库。
 
 ### 人工安装
 
 在 CLIProxyAPI 根目录运行。macOS 和 Linux 使用：
 
 ```sh
-curl -LsSf https://raw.githubusercontent.com/haowang02/cpa-plugin-key-billing/main/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/yayuk-labs/cpa-plugin-key-billing/main/install.sh | sh
 ```
 
 Windows 请先停止 CLIProxyAPI，再在 PowerShell 中运行：
 
 ```powershell
-irm https://raw.githubusercontent.com/haowang02/cpa-plugin-key-billing/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/yayuk-labs/cpa-plugin-key-billing/main/install.ps1 | iex
 ```
 
 安装脚本会将插件安装到当前目录的 `plugins/`。安装或升级完成后需要重启 CLIProxyAPI。

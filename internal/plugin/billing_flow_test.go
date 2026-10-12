@@ -248,6 +248,56 @@ func TestUsageHandleDoesNotGuessUnknownProviderAccounting(t *testing.T) {
 	}
 }
 
+func TestZedUsageBillsAndExhaustsQuota(t *testing.T) {
+	app := newAppWithPrice(t, true)
+	const model = "zed/anthropic/claude-sonnet-4-5"
+	cacheRead, cacheWrite := 0.1, 1.25
+	if _, err := app.store.UpsertPrice(billing.CustomPrice{ModelID: model, PriceRates: billing.PriceRates{
+		InputPer1M: 1, OutputPer1M: 2, CacheReadPer1M: &cacheRead, CacheWritePer1M: &cacheWrite,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.store.SyncKeys([]string{testAPIKey}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.store.CreatePlanWithBindings(billing.Plan{
+		ID: "zed", Name: "Zed", Windows: []billing.QuotaWindow{{Name: "Daily", AmountUSD: 0.001, PeriodSeconds: 86400}},
+	}, []string{flowScope()}); err != nil {
+		t.Fatal(err)
+	}
+	request := RequestInterceptRequest{Model: model, RequestedModel: model, SourceFormat: "openai", Metadata: flowMetadata()}
+	raw, err := app.HandleMethod(MethodRequestInterceptBefore, mustMarshal(t, request))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response RequestInterceptResponse
+	decodeResult(t, raw, &response)
+	if response.Terminate {
+		t.Fatalf("initial admission = %+v", response)
+	}
+	publishUsageRecord(t, app, UsageRecord{
+		Provider: "zed", ExecutorType: "executorAdapter", Model: model, Alias: model, APIKey: testAPIKey,
+		Generate: true, RequestedAt: app.store.Now(), Detail: UsageDetail{
+			InputTokens: 1000, OutputTokens: 500, ReasoningTokens: 200,
+			CacheReadTokens: 400, CacheCreationTokens: 100, TotalTokens: 1500,
+		},
+	})
+	cost, requests := requestEventCost(t, app)
+	assertCostClose(t, cost, 0.001665)
+	entries := requestEventEntries(t, app)
+	if requests != 1 || len(entries) != 1 || entries[0].AccountingQuality != billing.TokenAccountingComplete || entries[0].BillingModel != model {
+		t.Fatalf("entries = %+v", entries)
+	}
+	raw, err = app.HandleMethod(MethodRequestInterceptBefore, mustMarshal(t, request))
+	if err != nil {
+		t.Fatal(err)
+	}
+	decodeResult(t, raw, &response)
+	if !response.Terminate || response.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("exhausted admission = %+v", response)
+	}
+}
+
 func TestUsageHandlePersistsBillWithoutPlaintextKeys(t *testing.T) {
 	app, statePath := newAppWithPriceAndState(t, true)
 	publishUsageRecord(t, app, UsageRecord{
