@@ -42,6 +42,17 @@ func usageBreakdown(record UsageRecord) billing.TokenBreakdown {
 	cacheRead := detail.CacheReadTokens
 	cacheWrite := detail.CacheCreationTokens
 	total := detail.TotalTokens
+	// Backboard emits OpenAI or Claude usage; their totals distinguish cache subsets from separate cache tokens.
+	if strings.EqualFold(strings.TrimSpace(record.Provider), "backboard") {
+		subsetTotal, subsetOK := checkedTokenSum(input, output)
+		independentTotal, independentOK := checkedTokenSum(input, output, cacheRead, cacheWrite)
+		switch {
+		case subsetOK && total == subsetTotal:
+			semantics = tokenSemanticsSubset
+		case independentOK && total == independentTotal:
+			semantics = tokenSemanticsIndependent
+		}
+	}
 	if total > 0 && input == 0 && output == 0 && reasoning == 0 && cacheRead == 0 && cacheWrite == 0 &&
 		detail.CachedTokens == 0 && (semantics == tokenSemanticsSubset || semantics == tokenSemanticsUnknown) {
 		return unclassifiedBreakdown(total)
