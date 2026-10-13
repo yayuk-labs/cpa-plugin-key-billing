@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.23
+
+### 后端
+
+- 修复 Backboard 模型用量不计费、金额额度无法耗尽的问题，支持 Chat Completions、Responses 与 Claude 格式的用量记录。
+- 按 CPA 上报的 Token 总数区分缓存包含与独立缓存计数，避免重复计费；计数缺失或冲突时保留未分类记录。
+
 ## v1.3.22
 
 ### 后端

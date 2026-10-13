@@ -233,68 +233,93 @@ func TestUsageHandleRecordsUnscopedUsageWithoutCreatingKey(t *testing.T) {
 }
 
 func TestUsageHandleDoesNotGuessUnknownProviderAccounting(t *testing.T) {
-	app := newAppWithPrice(t, true)
-	publishUsageRecord(t, app, UsageRecord{
-		Provider: "future-provider", Model: flowModel, Alias: flowModel, APIKey: testAPIKey,
-		Generate: true, Detail: UsageDetail{InputTokens: 100, OutputTokens: 20, TotalTokens: 120},
-	})
-	cost, requests := requestEventCost(t, app)
-	if requests != 1 {
-		t.Fatalf("unknown cost = %v, requests = %d", cost, requests)
+	tests := []struct {
+		name, provider string
+		detail         UsageDetail
+	}{
+		{"unknown provider", "future-provider", UsageDetail{InputTokens: 100, OutputTokens: 20, TotalTokens: 120}},
+		{"backboard missing total", "backboard", UsageDetail{InputTokens: 100, OutputTokens: 20, CacheReadTokens: 10}},
+		{"backboard contradictory total", "backboard", UsageDetail{InputTokens: 100, OutputTokens: 20, CacheReadTokens: 10, TotalTokens: 125}},
 	}
-	assertCostClose(t, cost, 0)
-	if entries := requestEventEntries(t, app); len(entries) != 1 || entries[0].AccountingQuality != billing.TokenAccountingUnclassified {
-		t.Fatalf("entries = %+v", entries)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app := newAppWithPrice(t, true)
+			publishUsageRecord(t, app, UsageRecord{
+				Provider: test.provider, Model: flowModel, Alias: flowModel, APIKey: testAPIKey,
+				Generate: true, Detail: test.detail,
+			})
+			cost, requests := requestEventCost(t, app)
+			if requests != 1 {
+				t.Fatalf("unknown cost = %v, requests = %d", cost, requests)
+			}
+			assertCostClose(t, cost, 0)
+			if entries := requestEventEntries(t, app); len(entries) != 1 || entries[0].AccountingQuality != billing.TokenAccountingUnclassified {
+				t.Fatalf("entries = %+v", entries)
+			}
+		})
 	}
 }
 
-func TestZedUsageBillsAndExhaustsQuota(t *testing.T) {
-	app := newAppWithPrice(t, true)
-	const model = "zed/anthropic/claude-sonnet-4-5"
-	cacheRead, cacheWrite := 0.1, 1.25
-	if _, err := app.store.UpsertPrice(billing.CustomPrice{ModelID: model, PriceRates: billing.PriceRates{
-		InputPer1M: 1, OutputPer1M: 2, CacheReadPer1M: &cacheRead, CacheWritePer1M: &cacheWrite,
-	}}); err != nil {
-		t.Fatal(err)
+func TestPluginProviderUsageBillsAndExhaustsQuota(t *testing.T) {
+	tests := []struct {
+		name, provider, format string
+		inputTokens            int64
+	}{
+		{"zed", "zed", "openai", 1000},
+		{"backboard chat", "backboard", "openai", 1000},
+		{"backboard responses", "backboard", "openai-response", 1000},
+		{"backboard messages", "backboard", "claude", 500},
 	}
-	if _, err := app.store.SyncKeys([]string{testAPIKey}, false); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := app.store.CreatePlanWithBindings(billing.Plan{
-		ID: "zed", Name: "Zed", Windows: []billing.QuotaWindow{{Name: "Daily", AmountUSD: 0.001, PeriodSeconds: 86400}},
-	}, []string{flowScope()}); err != nil {
-		t.Fatal(err)
-	}
-	request := RequestInterceptRequest{Model: model, RequestedModel: model, SourceFormat: "openai", Metadata: flowMetadata()}
-	raw, err := app.HandleMethod(MethodRequestInterceptBefore, mustMarshal(t, request))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var response RequestInterceptResponse
-	decodeResult(t, raw, &response)
-	if response.Terminate {
-		t.Fatalf("initial admission = %+v", response)
-	}
-	publishUsageRecord(t, app, UsageRecord{
-		Provider: "zed", ExecutorType: "executorAdapter", Model: model, Alias: model, APIKey: testAPIKey,
-		Generate: true, RequestedAt: app.store.Now(), Detail: UsageDetail{
-			InputTokens: 1000, OutputTokens: 500, ReasoningTokens: 200,
-			CacheReadTokens: 400, CacheCreationTokens: 100, TotalTokens: 1500,
-		},
-	})
-	cost, requests := requestEventCost(t, app)
-	assertCostClose(t, cost, 0.001665)
-	entries := requestEventEntries(t, app)
-	if requests != 1 || len(entries) != 1 || entries[0].AccountingQuality != billing.TokenAccountingComplete || entries[0].BillingModel != model {
-		t.Fatalf("entries = %+v", entries)
-	}
-	raw, err = app.HandleMethod(MethodRequestInterceptBefore, mustMarshal(t, request))
-	if err != nil {
-		t.Fatal(err)
-	}
-	decodeResult(t, raw, &response)
-	if !response.Terminate || response.StatusCode != http.StatusTooManyRequests {
-		t.Fatalf("exhausted admission = %+v", response)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app := newAppWithPrice(t, true)
+			model := test.provider + "/anthropic/claude-sonnet-4-5"
+			cacheRead, cacheWrite := 0.1, 1.25
+			if _, err := app.store.UpsertPrice(billing.CustomPrice{ModelID: model, PriceRates: billing.PriceRates{
+				InputPer1M: 1, OutputPer1M: 2, CacheReadPer1M: &cacheRead, CacheWritePer1M: &cacheWrite,
+			}}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := app.store.SyncKeys([]string{testAPIKey}, false); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := app.store.CreatePlanWithBindings(billing.Plan{
+				ID: "provider", Name: "Provider", Windows: []billing.QuotaWindow{{Name: "Daily", AmountUSD: 0.001, PeriodSeconds: 86400}},
+			}, []string{flowScope()}); err != nil {
+				t.Fatal(err)
+			}
+			request := RequestInterceptRequest{Model: model, RequestedModel: model, SourceFormat: test.format, Metadata: flowMetadata()}
+			raw, err := app.HandleMethod(MethodRequestInterceptBefore, mustMarshal(t, request))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response RequestInterceptResponse
+			decodeResult(t, raw, &response)
+			if response.Terminate {
+				t.Fatalf("initial admission = %+v", response)
+			}
+			publishUsageRecord(t, app, UsageRecord{
+				Provider: test.provider, ExecutorType: "executorAdapter", Model: model, Alias: model, APIKey: testAPIKey,
+				Generate: true, RequestedAt: app.store.Now(), Detail: UsageDetail{
+					InputTokens: test.inputTokens, OutputTokens: 500, ReasoningTokens: 200,
+					CacheReadTokens: 400, CacheCreationTokens: 100, TotalTokens: 1500,
+				},
+			})
+			cost, requests := requestEventCost(t, app)
+			assertCostClose(t, cost, 0.001665)
+			entries := requestEventEntries(t, app)
+			if requests != 1 || len(entries) != 1 || entries[0].AccountingQuality != billing.TokenAccountingComplete || entries[0].BillingModel != model {
+				t.Fatalf("entries = %+v", entries)
+			}
+			raw, err = app.HandleMethod(MethodRequestInterceptBefore, mustMarshal(t, request))
+			if err != nil {
+				t.Fatal(err)
+			}
+			decodeResult(t, raw, &response)
+			if !response.Terminate || response.StatusCode != http.StatusTooManyRequests {
+				t.Fatalf("exhausted admission = %+v", response)
+			}
+		})
 	}
 }
 
