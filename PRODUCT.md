@@ -16,10 +16,10 @@ Expose per-key billing and quota information within CLIProxyAPI's existing plugi
 
 ## Capabilities and Constraints
 
-The user usage page accepts API keys only. Request Events, Error Events, Auth Files, and upstream quota actions belong exclusively to administrators. User routing responses contain model permissions only, with no credential identities, selectors, or credential permissions. Preserve existing billing history and quota semantics. Use the existing self-contained HTML, theme system, and English/Chinese translations.
+The user usage page accepts API keys only. Request Events, Error Events, Auth Files, and upstream quota actions belong exclusively to administrators. User routing responses contain model permissions only, with no credential identities, selectors, or credential permissions. User usage distribution is model-only and excludes upstream source identities. Preserve existing billing history and quota semantics. Use the existing self-contained HTML, theme system, and English/Chinese translations.
 
 ## Product Principles
 
-- Put remaining quota and spending before detail.
+- Make current quota remaining and used explicit per independent window; keep historical spending separate.
 - Enforce role boundaries at the API as well as in navigation.
 - Show only usage supplied by the host.

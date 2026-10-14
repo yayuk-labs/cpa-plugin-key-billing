@@ -502,7 +502,7 @@ function renderAnalysisDistribution(account, { colors = analysisColors(), animat
   const role = account ? "account" : "admin";
   const analysis = analysisQueries[role].value;
   const target = $(account ? "account-usage-distribution" : "usage-distribution");
-  const labels = { api_keys: "API Key", models: m("ui.model"), sources: m("ui.source") };
+  const labels = account ? { models: m("ui.model") } : { api_keys: "API Key", models: m("ui.model"), sources: m("ui.source") };
   if (account || $("analysis-key").value) delete labels.api_keys;
   const dimension = labels[analysisDimensions[role]] ? analysisDimensions[role] : "models";
   const metric = analysisMetrics[role];

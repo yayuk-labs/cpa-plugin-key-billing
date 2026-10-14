@@ -851,9 +851,7 @@ button.key-copy-button.copied, button.key-copy-button.copied:hover { color: var(
 }
 .icon-action .lucide-icon { width: 16px; height: 16px; }
 body.embedded .standalone-actions { display: none; }
-.account-subscription-stats { margin-bottom: 16px; }
 .account-plan { display: grid; align-content: start; gap: 10px; margin: 0; }
-.account-plan-value { font-size: 24px; }
 .quota-windows { display: grid; gap: 6px; min-width: 0; }
 .quota-window { display: flex; flex-direction: column; min-width: 0; gap: 5px; }
 .quota-title { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; flex-wrap: wrap; }
@@ -1892,7 +1890,6 @@ html:has(dialog[open]), body:has(dialog[open]) { overflow: hidden; }
 @media (max-width: 768px) {
   :root { --page-gap: 12px; }
   .wrap { padding: 14px 12px 0; }
-  .account-subscription-stats { grid-template-columns: 1fr; }
   :root:not([data-cpamp-plugin-host="true"]) .wrap { padding: calc(90px + env(safe-area-inset-top)) 16px 0; }
   :root:not([data-cpamp-plugin-host="true"]) body::before { height: 114px; }
   .section-toolbar { align-items: center; }
@@ -2154,14 +2151,12 @@ html:has(dialog[open]), body:has(dialog[open]) { overflow: hidden; }
 .usage-page #account-identity { color: var(--text-secondary); font-size: 13px; }
 .usage-page #account-app .card { border: 1px solid var(--border-color); border-radius: 12px; box-shadow: none; }
 .usage-page #account-app .page-navigation { border-radius: 10px; background: none; padding: 0; box-shadow: none; }
-.usage-page #account-app .page-tabs-row { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
+.usage-page #account-app .page-tabs-row { margin-bottom: 24px; padding-bottom: 16px; }
 .usage-page #account-app .tabs { padding: 0; gap: 6px; }
 .usage-page #account-app .tabs button { border-radius: 6px; }
-.usage-page .account-subscription-stats { grid-template-columns: minmax(0, 3fr) minmax(200px, 1fr); gap: 20px; margin-bottom: 28px; }
 .usage-page .account-plan { padding: 24px; gap: 16px; }
 .usage-page .account-plan-heading { margin-bottom: -4px; }
-.usage-page .account-plan-value { font-size: 32px; font-variant-numeric: tabular-nums; }
-.usage-page #account-app .analysis-summary-grid { gap: 0; margin-bottom: 28px; border-block: 1px solid var(--border-color); }
+.usage-page #account-app .analysis-summary-grid { gap: 0; margin-bottom: 28px; }
 :root .usage-page #account-app .analysis-summary-card {
   grid-template-rows: auto auto auto 1fr;
   gap: 10px;
@@ -2191,7 +2186,6 @@ html:has(dialog[open]), body:has(dialog[open]) { overflow: hidden; }
 .usage-page ::selection { background: var(--primary-color); color: var(--primary-contrast); }
 @media (max-width: 768px) {
   .usage-page .wrap { padding: 24px 16px; }
-  .usage-page .account-subscription-stats { grid-template-columns: 1fr; gap: 12px; }
   .usage-page .account-plan { padding: 20px; }
   .usage-page #account-app .analysis-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   :root .usage-page #account-app .analysis-summary-card { padding: 18px 10px; }
@@ -2200,4 +2194,46 @@ html:has(dialog[open]), body:has(dialog[open]) { overflow: hidden; }
   }
   .usage-page #account-identity { display: block !important; max-width: 58vw; }
   .usage-page #gate { padding: 24px; }
+}
+
+.account-quota-windows { display: grid; gap: 0; }
+.account-quota-window { min-width: 0; padding: 24px 0; border-top: 1px solid var(--border-color); }
+.account-quota-window-heading { align-items: baseline; margin-bottom: 20px; gap: 12px; }
+.account-quota-window h3 { margin: 0; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.account-quota-reset { font-size: 12px; text-align: right; }
+.account-quota-balances { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; margin-bottom: 20px; }
+.account-quota-balance { min-width: 0; }
+.account-quota-balance dl { margin: 0; }
+.account-quota-balance dt { color: var(--text-secondary); font-size: 14px; }
+.account-quota-value {
+  margin: 6px 0 10px;
+  font-size: 38px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.account-quota-used { margin: 0 0 12px; color: var(--text-secondary); font-size: 14px; }
+.account-quota-balance .bar { height: 6px; }
+.account-quota-balance.blocked .account-quota-value { color: var(--error-color); }
+.account-quota-balance .tag { margin-top: 12px; }
+.account-quota-scope { margin: 0; font-size: 12px; }
+.account-quota-unlimited { margin: 12px 0 24px; font-size: 24px; }
+.account-concurrency-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.account-concurrency-status b { color: var(--text-primary); margin-left: 6px; font-variant-numeric: tabular-nums; }
+@media (max-width: 768px) {
+  .account-quota-window { padding: 20px 0; }
+  .account-quota-window-heading { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .account-quota-reset { text-align: left; }
+  .account-quota-balances { grid-template-columns: 1fr; gap: 20px; }
+  .account-quota-value { font-size: 34px; }
 }

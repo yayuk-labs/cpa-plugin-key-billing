@@ -30,7 +30,7 @@ const embedded = window.parent !== window;
 document.body.classList.toggle("embedded", embedded);
 document.body.classList.toggle("usage-page", !embedded);
 const ADMIN_TAB_IDS = ["keys", "analysis", "request-events", "errors", "auth-files", "settings"];
-const ACCOUNT_TAB_IDS = ["subscription", "details"];
+const ACCOUNT_TAB_IDS = ["subscription", "history", "details"];
 const PAGE_ROUTE_KEY = "cpa-key-billing.route.v1." + (embedded ? "embedded" : "standalone");
 
 function parsePageRoute(value) {

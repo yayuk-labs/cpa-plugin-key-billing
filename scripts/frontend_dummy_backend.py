@@ -1281,7 +1281,7 @@ def analysis_view(query, scope=""):
         "usage_distribution": {
             "api_keys": [] if scope or selected is not None else distribution("scope", "label", unknown=""),
             "models": distribution("billing_model", unknown="未知模型"),
-            "sources": distribution("source", unknown="未知来源"),
+            "sources": [] if scope else distribution("source", unknown="未知来源"),
         },
     }
 

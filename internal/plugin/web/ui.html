@@ -315,6 +315,7 @@
               <div class="page-tab-switcher">
                 <div class="tabs">
                   <button type="button" class="active" data-account-tab="subscription" data-i18n="ui.usage_overview">Overview</button>
+                  <button type="button" data-account-tab="history" data-i18n="ui.usage_history">Usage history</button>
                   <button type="button" data-account-tab="details" data-i18n="ui.models_and_access">Models &amp; access</button>
                 </div>
                 <span class="native-select page-tab-select">
@@ -354,23 +355,20 @@
           </div>
           <div id="account-shared-time-backdrop" class="time-range-backdrop hidden"></div>
           <section id="account-tab-subscription">
-            <div class="stats account-subscription-stats">
-              <div class="card account-plan">
-                <h2 data-i18n="ui.remaining_subscription_quota">Quota remaining</h2>
-                <div class="row spread account-plan-heading">
-                  <span id="account-plan-name" class="muted" data-i18n="ui.subscription_quota">Subscription quota</span>
-                  <span id="account-plan-status" class="tag plain"></span>
-                </div>
-                <div id="account-windows"></div>
+            <div class="card account-plan account-quota-panel">
+              <h2 data-i18n="ui.remaining_subscription_quota">Quota remaining</h2>
+              <div class="row spread account-plan-heading">
+                <span id="account-plan-name" class="muted" data-i18n="ui.subscription_quota">Subscription quota</span>
+                <span id="account-plan-status" class="tag plain"></span>
               </div>
-              <div class="card account-plan">
-                <h2 data-i18n="ui.concurrency_limit">Concurrency limit</h2>
-                <b id="account-concurrency" class="account-plan-value">—</b>
-                <div class="muted small" data-i18n="ui.active_connections_concurrency_limit_for_this_api_key">In-flight requests&thinsp;/&thinsp;concurrency limit for this API key</div>
+              <div id="account-windows"></div>
+              <div class="account-concurrency-status">
+                <span><span data-i18n="ui.in_flight_requests">In-flight requests</span> <b id="account-concurrency">—</b></span>
+                <span><span data-i18n="ui.concurrency_limit">Concurrency limit</span> <b id="account-concurrency-limit">—</b></span>
               </div>
             </div>
-            <div id="account-analysis-body"></div>
           </section>
+          <section id="account-tab-history" class="hidden"><div id="account-analysis-body"></div></section>
           <section id="account-tab-details" class="hidden">
             <div class="card" id="account-access-card"> <h2 data-i18n="ui.access_permissions">Access permissions</h2> <div id="account-access"></div> </div>
             <div class="card"> <h2 data-i18n="ui.model_prices">Model prices</h2> <div id="account-models" class="account-models"></div> </div>

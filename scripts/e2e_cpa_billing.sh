@@ -1452,7 +1452,8 @@ run_target() {
     ! jq -e 'length > 0 and all(.[]; has("model_id") and has("source") and (has("operation") | not))' \
       "$account_prices_file" >/dev/null ||
     ! jq -e --argjson expected "$expected_requests" '
-      .summary.requests == $expected and (.usage_distribution.api_keys | length) == 0
+      .summary.requests == $expected and (.usage_distribution.api_keys | length) == 0 and
+      (.usage_distribution.sources | length) == 0
     ' "$account_analysis_file" >/dev/null; then
     echo "CLIProxyAPI ${host_label} 的 API Key 自助查询范围或响应字段不正确。" >&2
     return 1

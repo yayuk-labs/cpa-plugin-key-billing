@@ -1,4 +1,9 @@
 {
+  "ui.usage_history": "用量历史",
+  "ui.in_flight_requests": "进行中的请求",
+  "ui.metric_remaining": "剩余{v0}",
+  "ui.used_of_limit": "已使用 {v0}，总额度 {v1}",
+  "ui.no_subscription_quota_limit": "无订阅额度限制",
   "ui.usage_sign_in_description": "输入 API Key，查看剩余额度、费用和用量。",
   "ui.management_sign_in_description": "使用管理密钥登录账单管理面板。",
   "ui.usage_overview": "用量概览",

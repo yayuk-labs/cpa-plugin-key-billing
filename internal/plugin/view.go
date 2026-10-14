@@ -248,6 +248,9 @@ func (a *App) analysis(req ManagementRequest, access viewAccess) ManagementRespo
 	if access.APIKey || query.KeyScope != "" || query.KeyScopeEmpty {
 		view.UsageDistribution.APIKeys = []billing.AnalysisComposition{}
 	}
+	if access.APIKey {
+		view.UsageDistribution.Sources = []billing.AnalysisComposition{}
+	}
 	return viewJSON(access, http.StatusOK, view)
 }
 

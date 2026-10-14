@@ -140,7 +140,7 @@ function restoreRolePreferences(role) {
   if (rolling) sharedTimeChoices[role][rolling.unit] = rolling.value;
   const defaultDimension = account ? "models" : "api_keys";
   const dimension = viewPreference(role, "analysis-dimension", defaultDimension);
-  const allowedDimensions = account ? ["models", "sources"] : ["api_keys", "models", "sources"];
+  const allowedDimensions = account ? ["models"] : ["api_keys", "models", "sources"];
   analysisDimensions[role] = allowedDimensions.includes(dimension) ? dimension : defaultDimension;
   const metric = viewPreference(role, "analysis-metric", "total_tokens");
   analysisMetrics[role] = Object.hasOwn(DISTRIBUTION_METRICS, metric) ? metric : "total_tokens";
@@ -263,8 +263,8 @@ function setAccountTab(tab) {
   });
   $("account-page-tab-select").value = accountTab;
   for (const name of ACCOUNT_TAB_IDS) { $("account-tab-" + name).classList.toggle("hidden", name !== accountTab); }
-  $("account-shared-time-filter").classList.toggle("hidden", accountTab !== "subscription");
-  if (accountTab !== "subscription") { closeSharedTimePopover(true); }
+  $("account-shared-time-filter").classList.toggle("hidden", accountTab !== "history");
+  if (accountTab !== "history") { closeSharedTimePopover(true); }
   schedulePageTabLayout();
 }
 

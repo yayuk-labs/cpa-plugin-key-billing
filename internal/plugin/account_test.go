@@ -196,6 +196,31 @@ func TestAccountAnalysisCannotCrossScopesOrExposeScope(t *testing.T) {
 	}
 }
 
+func TestAccountAnalysisHidesSourcesWhileAdminRetainsThem(t *testing.T) {
+	app := configuredAccountApp(t)
+	const source = "private-upstream@example.test"
+	publishUsageRecord(t, app, UsageRecord{
+		Provider: "codex", Model: "gpt-5.5", Alias: "gpt-5.5", APIKey: accountTestKeyA,
+		AuthType: "oauth", Source: source, Generate: true, RequestedAt: app.store.Now(),
+		Detail: UsageDetail{OutputTokens: 7, TotalTokens: 7},
+	})
+	response := callAccount(t, app, routeAnalysis, accountTestKeyA, url.Values{"dimension": {"sources"}})
+	var view billing.AnalysisView
+	if err := json.Unmarshal(response.Body, &view); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || len(view.UsageDistribution.Sources) != 0 || strings.Contains(string(response.Body), source) {
+		t.Fatalf("user analysis exposed sources: %s", response.Body)
+	}
+	if view.Summary.Requests != 2 || len(view.UsageDistribution.Models) != 1 || view.UsageDistribution.Models[0].TotalTokens != 27 {
+		t.Fatalf("user model analysis changed: %+v", view)
+	}
+	response = callManagement(t, app, http.MethodGet, routeAnalysis, nil, nil)
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(response.Body), source) {
+		t.Fatalf("admin analysis lost sources: %s", response.Body)
+	}
+}
+
 func TestAccountEmailMasking(t *testing.T) {
 	app, path := newAppWithPriceAndState(t, true)
 	raw, errHandle := app.HandleMethod(MethodPluginReconfigure, mustMarshal(t, LifecycleRequest{ConfigYAML: []byte(

@@ -12,9 +12,10 @@ function renderAccountSubscription() {
   const data = resources.account.subscription;
   const subscription = data.value?.subscription || {};
   const concurrency = data.value?.concurrency || {};
+  setText($("account-concurrency"), !data.value ? "—" : int(concurrency.current));
   setText(
-    $("account-concurrency"),
-    !data.value ? "—" : int(concurrency.current) + " / " + (Number(concurrency.limit || 0) > 0 ? int(concurrency.limit) : "∞")
+    $("account-concurrency-limit"),
+    !data.value ? "—" : Number(concurrency.limit || 0) > 0 ? int(concurrency.limit) : m("ui.unlimited")
   );
   setText(
     $("account-plan-name"),
@@ -29,7 +30,64 @@ function renderAccountSubscription() {
   );
   const target = $("account-windows");
   if (renderDataPending(target, [data], m("ui.loading_subscription_status"))) return;
-  target.replaceChildren(renderQuotaWindows(subscription, true));
+  target.replaceChildren(renderAccountQuotaWindows(subscription));
+}
+
+function renderAccountQuotaWindows(view) {
+  if (view.unlimited) return el("p", { class: "account-quota-unlimited", text: m("ui.no_subscription_quota_limit") });
+  return el(
+    "div",
+    { class: "account-quota-windows" },
+    view.windows.map((window) =>
+      el(
+        "section",
+        { class: "account-quota-window", "aria-label": window.name },
+        el(
+          "div",
+          { class: "row spread account-quota-window-heading" },
+          el("h3", { text: displayLabel(window.name) }),
+          el("span", {
+            class: "muted account-quota-reset",
+            text: window.started ? m("ui.resets_at_value", { v0: quotaWindowResetLabel(window, true) }) : m("ui.not_started"),
+            "data-tip": window.started ? when(window.end_at) : null
+          })
+        ),
+        el(
+          "div",
+          { class: "account-quota-balances" },
+          window.dimensions.map((balance) => {
+            const metric = QUOTA_DIMENSIONS.find((item) => item.metric === balance.metric);
+            const quota = remainingQuota(balance.used_percent);
+            const label = m("ui.metric_remaining", { v0: metric.label });
+            const used = m("ui.used_of_limit", { v0: metric.format(balance.used), v1: metric.format(balance.limit) });
+            return el(
+              "div",
+              { class: "account-quota-balance" + (balance.blocked ? " blocked" : "") },
+              el("dl", {}, el("dt", { text: label }), el("dd", { class: "account-quota-value", text: metric.format(balance.remaining) })),
+              el("p", { class: "account-quota-used", text: used }),
+              el(
+                "div",
+                {
+                  class: "bar",
+                  role: "progressbar",
+                  "aria-label": m("ui.valuevaluevalue_remaining_quota", { v0: window.name, v1: DISPLAY_SEPARATOR, v2: metric.label }),
+                  "aria-valuemin": "0",
+                  "aria-valuemax": "100",
+                  "aria-valuenow": String(Math.round(quota.percent)),
+                  "aria-valuetext": metric.exact(balance.remaining) + DISPLAY_SEPARATOR + label + DISPLAY_SEPARATOR + used
+                },
+                el("i", { class: "quota-fill " + quota.level, style: "width:" + quota.percent + "%" })
+              ),
+              balance.blocked ? el("span", { class: "tag bad", text: m("ui.quota_exhausted") }) : null
+            );
+          })
+        ),
+        window.models?.length
+          ? settingsChipList(window.models.map((text) => ({ text })))
+          : el("p", { class: "muted account-quota-scope", text: m("quota.other_models") })
+      )
+    )
+  );
 }
 
 function renderAccountModels() {

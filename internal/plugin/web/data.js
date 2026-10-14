@@ -648,7 +648,8 @@ function createPages(role) {
   };
   if (account) {
     for (const tab of ["analysis", "request-events", "errors", "auth-files"]) delete result[tab];
-    result.subscription = { query: "analysis", sections: [section(["subscription"], renderAccountSubscription)] };
+    result.subscription = { sections: [section(["subscription"], renderAccountSubscription)] };
+    result.history = { query: "analysis", sections: [] };
     result.details = {
       sections: [section(["models", "catalog", "routing"], renderAccountModels), section(["routing"], renderAccountRouting)]
     };
