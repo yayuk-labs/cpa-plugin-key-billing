@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"cpa-key-billing/internal/billing"
 )
@@ -16,14 +15,51 @@ const (
 	accountTestKeyB = "sk-account-test-key-0002"
 )
 
-func TestAccountMissingProviderWarningsHaveTranslationMetadata(t *testing.T) {
-	for _, source := range []string{billing.CredentialSourceAuthFiles, billing.CredentialSourceAIProviders} {
-		provider := "custom-provider"
-		credentials, warnings := accountRoutingCredentials(nil, nil,
-			[]billing.CredentialProviderSelector{{Source: source, Provider: provider}}, billing.RoutingDecision{})
-		if len(credentials) != 1 || len(warnings) != 1 || warnings[0].Key == "" || warnings[0].Params["v0"] != `"custom-provider"` {
-			t.Fatalf("source=%s, credentials=%+v, warnings=%+v", source, credentials, warnings)
+func TestAccountCannotAccessAdminDiagnostics(t *testing.T) {
+	app := configuredAccountApp(t)
+	app.SetHostCaller(func(string, any) (json.RawMessage, error) {
+		t.Fatal("user diagnostics must not call the host")
+		return nil, nil
+	})
+	for _, path := range []string{routeEvents, routeErrors, routeAuthFiles, routeAuthQuota, routeAuthQuotaReset} {
+		for _, key := range []string{accountTestKeyA, "", "dummy-management-key"} {
+			response := callAccount(t, app, path, key, nil)
+			if response.StatusCode != http.StatusNotFound {
+				t.Fatalf("user route %s status = %d, want 404", path, response.StatusCode)
+			}
 		}
+	}
+}
+
+func TestAccountRoutingDoesNotExposeUpstreamCredentials(t *testing.T) {
+	app := configuredAccountApp(t)
+	_, err := app.store.CreateRoute(billing.Route{Name: "Private upstream", Rule: billing.RouteRule{
+		Models: []string{"gpt-5.5"}, CredentialIDs: []string{billing.CredentialFingerprint("dummy-private-upstream")},
+		DeniedCredentialProviders: []billing.CredentialProviderSelector{{Source: billing.CredentialSourceAIProviders, Provider: "claude"}},
+	}}, []string{billing.CallerScope(accountTestKeyA)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostCalls := 0
+	app.SetHostCaller(func(string, any) (json.RawMessage, error) {
+		hostCalls++
+		return json.RawMessage(`{"files":[]}`), nil
+	})
+	response := callAccount(t, app, routeRouting, accountTestKeyA, nil)
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(response.Body, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || string(payload["models"]) != `["gpt-5.5"]` || string(payload["routing_valid"]) != "true" {
+		t.Fatalf("model access = %s", response.Body)
+	}
+	for _, field := range []string{"credentials", "denied_credentials"} {
+		if _, exists := payload[field]; exists {
+			t.Fatalf("user routing exposed %s: %s", field, response.Body)
+		}
+	}
+	if hostCalls != 0 {
+		t.Fatalf("user routing loaded upstream credentials %d times", hostCalls)
 	}
 }
 
@@ -139,71 +175,6 @@ func TestAccountRoutesRejectMissingOrAmbiguousBearer(t *testing.T) {
 	}
 }
 
-func TestAccountRequestEventsUseSharedShapeWithoutCrossingScopes(t *testing.T) {
-	app := configuredAccountApp(t)
-	response := callAccount(t, app, routeEvents, accountTestKeyA, url.Values{"limit": {"10"}})
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("response = %+v", response)
-	}
-	var view billing.RequestEventView
-	if errDecode := json.Unmarshal(response.Body, &view); errDecode != nil {
-		t.Fatal(errDecode)
-	}
-	if view.Total != 1 || len(view.Entries) != 1 || view.Entries[0].Cost.BilledOutputTokens != 20 {
-		t.Fatalf("view = %+v", view)
-	}
-	if view.Filters == nil || len(view.Filters.Models) != 1 || view.Filters.Models[0] != "gpt-5.5" ||
-		len(view.Filters.SourceOptions) != 1 || view.Filters.SourceOptions[0].Label != "openai" ||
-		!validSourceFilterToken(view.Filters.SourceOptions[0].Value) {
-		t.Fatalf("account request event filter options = %+v", view.Filters)
-	}
-	from := view.Entries[0].At.Format(time.RFC3339Nano)
-	to := view.Entries[0].At.Add(time.Second).Format(time.RFC3339Nano)
-	filtered := callAccount(t, app, routeEvents, accountTestKeyA, url.Values{
-		"api_key": {billing.CallerScope(accountTestKeyB)},
-		"model":   {"gpt-5.5"}, "failed": {"false"}, "from": {from}, "to": {to},
-	})
-	if errDecode := json.Unmarshal(filtered.Body, &view); errDecode != nil || view.Total != 1 {
-		t.Fatalf("filtered account request events = %+v, err = %v", view, errDecode)
-	}
-	body := string(response.Body)
-	for _, forbidden := range []string{accountTestKeyA, accountTestKeyB,
-		billing.CallerScope(accountTestKeyA), billing.CallerScope(accountTestKeyB), `"auth_index":"`} {
-		if strings.Contains(body, forbidden) {
-			t.Fatalf("account request events leaked %q: %s", forbidden, body)
-		}
-	}
-}
-
-func TestAccountRequestErrorsCannotCrossScopes(t *testing.T) {
-	app := configuredAccountApp(t)
-	for _, apiKey := range []string{accountTestKeyA, accountTestKeyB} {
-		publishUsageRecord(t, app, UsageRecord{
-			Provider: "codex", Model: "gpt-5.5", Alias: "gpt-5.5", APIKey: apiKey,
-			Generate: true, Failed: true, Failure: UsageFailure{StatusCode: 502,
-				Body: `{"error":{"message":"bad gateway","type":"upstream_error"}}`},
-		})
-	}
-	response := callAccount(t, app, routeErrors, accountTestKeyA, url.Values{
-		"api_key":     {billing.CallerScope(accountTestKeyB)},
-		"status_code": {"502"},
-	})
-	var view billing.RequestErrorView
-	if err := json.Unmarshal(response.Body, &view); err != nil {
-		t.Fatal(err)
-	}
-	if view.Total != 1 || len(view.Entries) != 1 || view.Entries[0].StatusCode != 502 {
-		t.Fatalf("errors = %+v", view)
-	}
-	body := string(response.Body)
-	for _, forbidden := range []string{accountTestKeyA, accountTestKeyB,
-		billing.CallerScope(accountTestKeyA), billing.CallerScope(accountTestKeyB), `"auth_index"`} {
-		if strings.Contains(body, forbidden) {
-			t.Fatalf("account error response leaked %q: %s", forbidden, body)
-		}
-	}
-}
-
 func TestAccountAnalysisCannotCrossScopesOrExposeScope(t *testing.T) {
 	app := configuredAccountApp(t)
 	response := callAccount(t, app, routeAnalysis, accountTestKeyA, url.Values{
@@ -222,37 +193,6 @@ func TestAccountAnalysisCannotCrossScopesOrExposeScope(t *testing.T) {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("account analysis leaked scope %q: %s", forbidden, body)
 		}
-	}
-}
-
-func TestAccountRequestEventsUseTheAdministratorSource(t *testing.T) {
-	app := newAppWithPrice(t, true)
-	if _, errSync := app.store.SyncKeys([]string{accountTestKeyA}, false); errSync != nil {
-		t.Fatal(errSync)
-	}
-	publishUsageRecord(t, app, UsageRecord{
-		Provider: "codex", ExecutorType: "CodexExecutor", Model: "gpt-5.5", Alias: "gpt-5.5",
-		APIKey: accountTestKeyA, AuthIndex: "auth-account-test", AuthType: "oauth",
-		Source: "private@example.com", Generate: true, RequestedAt: app.store.Now(),
-		Detail: UsageDetail{OutputTokens: 20, TotalTokens: 20},
-	})
-
-	response := callAccount(t, app, routeEvents, accountTestKeyA, nil)
-	var view billing.RequestEventView
-	if errDecode := json.Unmarshal(response.Body, &view); errDecode != nil {
-		t.Fatal(errDecode)
-	}
-	if len(view.Entries) != 1 || view.Entries[0].ExecutorType != "CodexExecutor" ||
-		view.Entries[0].Source != "codex · private@example.com" {
-		t.Fatalf("account request event = %+v", view)
-	}
-	if view.Filters == nil || len(view.Filters.SourceOptions) != 1 || view.Filters.SourceOptions[0].Label != "codex · private@example.com" {
-		t.Fatalf("account request event source filters = %+v", view.Filters)
-	}
-	filtered := callAccount(t, app, routeEvents, accountTestKeyA,
-		url.Values{"source": {view.Filters.SourceOptions[0].Value}})
-	if errDecode := json.Unmarshal(filtered.Body, &view); errDecode != nil || view.Total != 1 {
-		t.Fatalf("source-filtered account request events = %+v, err = %v", view, errDecode)
 	}
 }
 
@@ -279,19 +219,6 @@ func TestAccountEmailMasking(t *testing.T) {
 	profile := callAccount(t, app, routeProfile, accountTestKeyA, nil)
 	if strings.Contains(string(profile.Body), "owner@example.com") || !strings.Contains(string(profile.Body), "ow**r@example.com") {
 		t.Fatalf("masked profile = %s", profile.Body)
-	}
-	response := callAccount(t, app, routeEvents, accountTestKeyA, nil)
-	if strings.Contains(string(response.Body), "private@example.com") || !strings.Contains(string(response.Body), "pr****e@example.com") {
-		t.Fatalf("masked events = %s", response.Body)
-	}
-	var view billing.RequestEventView
-	if errDecode := json.Unmarshal(response.Body, &view); errDecode != nil {
-		t.Fatal(errDecode)
-	}
-	if len(view.Entries) != 1 || view.Entries[0].Source != "codex · pr****e@example.com" ||
-		view.Filters == nil || len(view.Filters.SourceOptions) != 1 ||
-		view.Filters.SourceOptions[0].Label != "codex · pr****e@example.com" {
-		t.Fatalf("masked event view = %+v", view)
 	}
 }
 
@@ -341,7 +268,7 @@ func TestAccountRoutingAndPricesRespectItsScope(t *testing.T) {
 		t.Fatalf("account prices did not use management response shape: %s", response.Body)
 	}
 	response = callAccount(t, app, routeRouting, accountTestKeyA, nil)
-	if hostCalls != 1 {
+	if hostCalls != 0 {
 		t.Fatalf("routing made %d host calls", hostCalls)
 	}
 	var access accountRoutingResponse
@@ -352,8 +279,8 @@ func TestAccountRoutingAndPricesRespectItsScope(t *testing.T) {
 		access.Models[0] != "gpt-5.5" || access.Models[1] != "missing-model" {
 		t.Fatalf("route access = %+v", access)
 	}
-	if !access.RoutingValid || len(access.Credentials) != 1 || access.Credentials[0].Name != "user@example.com" {
-		t.Fatalf("credential access = %+v", access)
+	if !access.RoutingValid || len(access.Warnings) != 0 {
+		t.Fatalf("model access = %+v", access)
 	}
 	if strings.Contains(string(response.Body), `"bindings"`) || strings.Contains(string(response.Body), `"kind"`) {
 		t.Fatalf("account access exposed route internals: %s", response.Body)
@@ -371,7 +298,7 @@ func TestAccountRoutingAndPricesRespectItsScope(t *testing.T) {
 		if err := json.Unmarshal(response.Body, &access); err != nil {
 			t.Fatal(err)
 		}
-		if !access.RoutingValid || len(access.Models) != 0 || len(access.Credentials) != 0 || len(access.DeniedModels) != 1 || len(access.DeniedCredentials) != 2 || len(access.Warnings) != 0 {
+		if !access.RoutingValid || len(access.Models) != 0 || len(access.DeniedModels) != 1 || len(access.Warnings) != 0 {
 			t.Fatalf("blacklist-only account: %+v", access)
 		}
 		if strings.Contains(string(response.Body), "sha256:") || strings.Contains(string(response.Body), "dummy-denied") {
@@ -393,12 +320,12 @@ func TestDeletedAccountCannotReadItsHistory(t *testing.T) {
 	if access.Tracked {
 		t.Fatalf("deleted account remained readable: %+v", access)
 	}
-	events := callAccount(t, app, routeEvents, accountTestKeyA, nil)
-	var view billing.RequestEventView
-	if errDecode := json.Unmarshal(events.Body, &view); errDecode != nil {
-		t.Fatal(errDecode)
+	response = callAccount(t, app, routeAnalysis, accountTestKeyA, nil)
+	var analysis billing.AnalysisView
+	if err := json.Unmarshal(response.Body, &analysis); err != nil {
+		t.Fatal(err)
 	}
-	if view.Total != 0 || len(view.Entries) != 0 {
-		t.Fatalf("deleted account request events = %+v", view)
+	if response.StatusCode != http.StatusOK || analysis.Summary.Requests != 0 {
+		t.Fatalf("deleted account analysis = %s", response.Body)
 	}
 }

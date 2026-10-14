@@ -1,4 +1,8 @@
 {
+  "ui.usage_sign_in_description": "输入 API Key，查看剩余额度、费用和用量。",
+  "ui.management_sign_in_description": "使用管理密钥登录账单管理面板。",
+  "ui.usage_overview": "用量概览",
+  "ui.models_and_access": "模型与权限",
   "ui.api_key_billing": "API Key 计费",
   "ui.choose_an_access_method": "选择访问方式",
   "ui.switch_theme": "切换主题",

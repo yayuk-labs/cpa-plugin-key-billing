@@ -60,19 +60,6 @@ function renderAccountRouting() {
 
 function renderAccountAccess(access) {
   const routingValid = access.routing_valid !== false;
-  const accountCredentialLabel = (item, state) => {
-    const name = window.billingI18n.serverMessage(item.name_message, item.name);
-    return {
-      text: item.provider_wide
-        ? credentialProviderLabel(item)
-        : item.status === "missing"
-          ? name ? maskedLabelText(name) : m("ui.the_selected_upstream_credential_is_currently_unavailable")
-          : maskedTailText(item.provider, name || m("ui.credential_unavailable")),
-      tag: item.provider_wide ? m("ui.entire_category") : "",
-      iconName: credentialIcon(item),
-      state: item.denied ? "deny" : state
-    };
-  };
   const deniedModels = new Set((access.denied_models || []).map((model) => model.toLowerCase()));
   const modelItems = access.models.map((text) => ({
     text,
@@ -83,16 +70,6 @@ function renderAccountAccess(access) {
   for (const text of access.denied_models || [])
     if (!access.models.some((model) => model.toLowerCase() === text.toLowerCase()))
       modelItems.push({ text, state: "deny", iconName: "astroid" });
-  const credentialItems = access.credentials.map((item) => accountCredentialLabel(item, "allow"));
-  if (!credentialItems.length) credentialItems.push({ text: routingValid ? m("ui.all_credentials") : m("ui.unknown") });
-  const credentialKey = (item) => JSON.stringify([item.source, item.provider, !!item.provider_wide, item.name]);
-  const deniedCredentials = new Set(access.credentials.filter((item) => item.denied).map(credentialKey));
-  for (const item of access.denied_credentials || []) {
-    const key = credentialKey(item);
-    if (deniedCredentials.has(key)) continue;
-    deniedCredentials.add(key);
-    credentialItems.push(accountCredentialLabel(item, "deny"));
-  }
   const nodes = [
     el(
       "div",
@@ -102,12 +79,6 @@ function renderAccountAccess(access) {
         { class: "inset-card" },
         el("div", { class: "account-access-scope-label", text: m("ui.model_access") }),
         settingsChipList(modelItems)
-      ),
-      el(
-        "div",
-        { class: "inset-card" },
-        el("div", { class: "account-access-scope-label", text: m("ui.credential_access") }),
-        settingsChipList(credentialItems)
       )
     )
   ];

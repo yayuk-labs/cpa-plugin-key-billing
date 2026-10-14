@@ -945,14 +945,8 @@ def account_routing(index):
 
 def account_routing_view(index):
     models, refs, providers, denied_models, denied_refs, denied_providers = account_routing(index)
-    def credential_view(item):
-        return {"source": item["source"], "provider": item["provider"], "name": item["display_name"], "status": item["status"],
-                "denied": item["ref"] in denied_refs or (item["source"], item["provider"]) in denied_providers}
     return {
         "models": sorted(models), "denied_models": sorted(denied_models),
-        "credentials": [credential_view(item) for item in CREDENTIALS if item["ref"] in refs or (item["source"], item["provider"]) in providers],
-        "denied_credentials": [credential_view(item) for item in CREDENTIALS if item["ref"] in denied_refs] +
-            [{"source": source, "provider": provider, "provider_wide": True, "denied": True} for source, provider in sorted(denied_providers)],
         "routing_valid": True, "warnings": [],
     }
 
@@ -1516,12 +1510,7 @@ class Handler(BaseHTTPRequestHandler):
             f"{RESOURCE_BASE}/subscription",
             f"{RESOURCE_BASE}/routing",
             f"{RESOURCE_BASE}/prices",
-            f"{RESOURCE_BASE}/events",
-            f"{RESOURCE_BASE}/errors",
             f"{RESOURCE_BASE}/analysis",
-            f"{RESOURCE_BASE}/auth-files",
-            f"{RESOURCE_BASE}/auth-files/quota",
-            f"{RESOURCE_BASE}/auth-files/quota/reset",
         }
         if parsed.path in resource_paths:
             if not authorization.startswith("Bearer ") or authorization[7:] not in api_keys:
@@ -1531,7 +1520,7 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path.endswith("/profile"):
                 key = LIVE_KEYS[index]
                 self.send_json(200, {"tracked": True, "identity": {"preview": key["preview"], "label": key["label"]},
-                                     "can_reset_auth_quota": self.allow_api_key_quota_reset})
+                                     "can_reset_auth_quota": False})
             elif parsed.path.endswith("/subscription"):
                 key = LIVE_KEYS[index]
                 refresh_key_quota(key)
@@ -1542,28 +1531,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, model_prices(parse_qs(parsed.query), include_custom=False))
             elif parsed.path.endswith("/analysis"):
                 self.send_json(200, analysis_view(parse_qs(parsed.query), LIVE_KEYS[index]["scope"]))
-            elif parsed.path.endswith("/errors"):
-                self.send_json(200, error_view(parse_qs(parsed.query), LIVE_KEYS[index]["scope"]))
-            elif parsed.path.endswith("/auth-files"):
-                self.send_json(200, {"files": auth_file_views(account_auth_files(index))})
-            elif parsed.path.endswith("/auth-files/quota"):
-                query = parse_qs(parsed.query)
-                allowed = {
-                    item["auth_index"] for item in account_auth_files(index)
-                }
-                auth_index = query.get("auth_index", [""])[0]
-                payload = auth_file_quota(query) if auth_index in allowed else None
-                if payload is None:
-                    self.send_json(404, {"error": {"message": "认证文件不存在或不支持限额查询"}})
-                else:
-                    self.send_json(200, payload)
-            elif parsed.path.endswith("/auth-files/quota/reset"):
-                if not self.allow_api_key_quota_reset:
-                    self.send_json(403, {"error": {"message": "Quota resets are disabled for API key users"}})
-                else:
-                    self.reset_auth_quota(parsed, account_auth_files(index))
-            elif parsed.path.endswith("/events"):
-                self.send_json(200, request_event_view(parse_qs(parsed.query), LIVE_KEYS[index]["scope"]))
+            return
+        if parsed.path.startswith(RESOURCE_BASE + "/"):
+            self.send_json(404, {"error": {"message": "Resource route not found"}})
             return
         payload = payload_for(parsed.path, parse_qs(parsed.query))
         if payload is None:

@@ -20,8 +20,7 @@ const resources = {
     subscription: m("ui.subscription"),
     routing: m("ui.access_permissions"),
     models: m("ui.model_catalog"),
-    catalog: m("ui.model_prices"),
-    authFiles: m("ui.auth_files")
+    catalog: m("ui.model_prices")
   })
 };
 // Key metadata is shared by configuration, event queries, and analysis.
@@ -346,7 +345,7 @@ function bindPagedListScroll(list) {
 
 const pagedLists = {
   admin: { events: createPagedList("events", false), errors: createPagedList("errors", false), logs: createPagedList("logs", false) },
-  account: { events: createPagedList("events", true), errors: createPagedList("errors", true) }
+  account: {}
 };
 
 function pagedList(kind, account = false) { return pagedLists[account ? "account" : "admin"][kind]; }
@@ -552,10 +551,7 @@ async function fetchAccountData(name) {
     requireObject(result.subscription, m("ui.subscription"));
     requireObject(result.concurrency, m("ui.concurrency_status"));
   }
-  if (name === "routing") {
-    requireArray(result.models, m("ui.model_permissions"));
-    requireArray(result.credentials, m("ui.credential_permissions"));
-  }
+  if (name === "routing") { requireArray(result.models, m("ui.model_permissions")); }
   return result;
 }
 
@@ -651,12 +647,10 @@ function createPages(role) {
     "auth-files": { sections: [section(["authFiles"], () => renderAuthFiles(account))] }
   };
   if (account) {
-    result.subscription = {
-      sections: [
-        section(["subscription"], renderAccountSubscription),
-        section(["models", "catalog", "routing"], renderAccountModels),
-        section(["routing"], renderAccountRouting)
-      ]
+    for (const tab of ["analysis", "request-events", "errors", "auth-files"]) delete result[tab];
+    result.subscription = { query: "analysis", sections: [section(["subscription"], renderAccountSubscription)] };
+    result.details = {
+      sections: [section(["models", "catalog", "routing"], renderAccountModels), section(["routing"], renderAccountRouting)]
     };
   } else {
     const keyFilter = keyedSection(["eventKeys"], renderEventKeys);
@@ -686,7 +680,6 @@ function createPages(role) {
     if (account) page.sources.unshift(data.profile);
     page.task = null;
   }
-  if (account) result["auth-files"].sections[0].sources.push(data.profile);
   return result;
 }
 const pages = { admin: createPages("admin"), account: createPages("account") };

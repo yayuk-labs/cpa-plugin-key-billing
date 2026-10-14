@@ -30,7 +30,7 @@ function loadCharts() {
 
 function renderLoadedCharts() {
   const account = currentRole === "account";
-  if (currentRole && activeTab(account) === "analysis" && analysisQueries[currentRole].value) renderAnalysis(account);
+  if (currentRole && currentPage()?.query === "analysis" && analysisQueries[currentRole].value) renderAnalysis(account);
 }
 
 function readAnalysis(account, reload) {
@@ -628,7 +628,9 @@ function renderAnalysis(account) {
   const points = trends.total_tokens;
   const daily = points.length > 1 && new Date(points[1].time) - new Date(points[0].time) > 12 * 3600000;
   const colors = analysisColors();
-  content.querySelector(".analysis-summary-grid").replaceWith(renderAnalysisSummary(summary, trends, daily));
+  const summaryGrid = renderAnalysisSummary(summary, trends, daily);
+  if (account) summaryGrid.prepend(summaryGrid.lastElementChild);
+  content.querySelector(".analysis-summary-grid").replaceWith(summaryGrid);
   for (const canvas of target.querySelectorAll("[data-analysis-trend]")) {
     drawAnalysisTrend(canvas, trends[canvas.dataset.analysisTrend]);
   }
