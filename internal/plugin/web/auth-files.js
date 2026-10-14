@@ -91,7 +91,7 @@ function resetAuthQuotaMemory(account) {
   owner.authQuotas.clear();
   owner.authQuotaLoading.clear();
   owner.authQuotaErrors.clear();
-  resetAuthQuotaBatch(account);
+  if (!account) resetAuthQuotaBatch(account);
 }
 
 function resetAuthQuotaBatch(account) {
@@ -678,7 +678,7 @@ async function refreshFilteredAuthQuotas(account) {
   }
 }
 
-for (const account of [false, true]) {
+for (const account of [false]) {
   const ui = authUI(account);
   const role = account ? "account" : "admin";
   setLabeledActionIcon(ui.bulk, "refresh", m("ui.update_quotas"));

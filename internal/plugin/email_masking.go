@@ -53,14 +53,6 @@ func maskAPIKeyPayload(payload any) (any, bool) {
 		value.Subscription.Name = maskEmails(value.Subscription.Name)
 		return value, true
 	case accountRoutingResponse:
-		for i := range value.Credentials {
-			value.Credentials[i].Name = maskEmails(value.Credentials[i].Name)
-			value.Credentials[i].NameMessage = maskMessage(value.Credentials[i].NameMessage)
-		}
-		for i := range value.DeniedCredentials {
-			value.DeniedCredentials[i].Name = maskEmails(value.DeniedCredentials[i].Name)
-			value.DeniedCredentials[i].NameMessage = maskMessage(value.DeniedCredentials[i].NameMessage)
-		}
 		for i := range value.Warnings {
 			value.Warnings[i] = maskEmails(value.Warnings[i])
 		}

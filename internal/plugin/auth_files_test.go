@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -689,47 +688,30 @@ func TestAuthQuotaReset(t *testing.T) {
 		want           int
 	}{
 		{"admin", 204, "", 200},
-		{"account", 204, "", 200},
-		{"masked name", 204, "", 200},
 		{"non-JSON success", 200, "accepted", 200},
 		{"no credits", 409, `{"error":{"message":"No reset credits available"}}`, 502},
 		{"expired credentials", 401, `{"error":{"message":"dummy-upstream-token expired"}}`, 502},
 		{"transport failure", 0, "", 502},
-		{"permission disabled", 0, "", 403},
-		{"unknown key", 0, "", 401},
 		{"invalid reset ID", 0, "", 400},
 		{"missing revision", 0, "", 409},
 		{"replaced file", 0, "", 409},
 		{"missing file", 0, "", 404},
 		{"unsupported provider", 0, "", 422},
 		{"disabled file", 0, "", 422},
-		{"denied credential", 0, "", 404},
-		{"outside allowlist", 0, "", 404},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			app := newTestApp(t)
 			t.Cleanup(app.Shutdown)
-			allowed := tc.name != "admin" && tc.name != "permission disabled"
-			config := string(testConfigYAML(t, true)) + "allow_api_key_quota_reset: " + strconv.FormatBool(allowed) +
-				"\nmask_api_key_view_emails: " + strconv.FormatBool(tc.name == "masked name") + "\n"
-			if err := app.configure(mustMarshal(t, LifecycleRequest{ConfigYAML: []byte(config)})); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := app.store.SyncKeys([]string{accountTestKeyA}, false); err != nil {
+			if err := app.configure(mustMarshal(t, LifecycleRequest{ConfigYAML: testConfigYAML(t, true)})); err != nil {
 				t.Fatal(err)
 			}
 			file := hostAuthFile{ID: "reset-file", AuthIndex: "codex-1", Name: "user@example.com.json", Type: "codex", Source: "file"}
 			req := ManagementRequest{
-				Method: http.MethodGet, Path: resourceBase + routeAuthQuotaReset, HostCallbackID: "reset-callback",
-				Headers: http.Header{"Authorization": {"Bearer " + accountTestKeyA}},
-				Query:   url.Values{"auth_index": {file.AuthIndex}, "auth_name": {file.Name}, "auth_revision": {""}},
+				Method: http.MethodPost, Path: managementBase + routeAuthQuotaReset, HostCallbackID: "reset-callback",
+				Query: url.Values{"auth_index": {file.AuthIndex}, "auth_name": {file.Name}, "auth_revision": {""}},
 			}
-			req.Headers.Set("X-Quota-Reset-ID", resetID)
+			req.Headers = http.Header{"X-Quota-Reset-Id": {resetID}}
 			switch tc.name {
-			case "admin":
-				req.Method, req.Path = http.MethodPost, managementBase+routeAuthQuotaReset
-			case "unknown key":
-				req.Headers.Set("Authorization", "Bearer dummy-unknown-key")
 			case "invalid reset ID":
 				req.Headers.Set("X-Quota-Reset-ID", "invalid")
 			case "missing revision":
@@ -742,14 +724,6 @@ func TestAuthQuotaReset(t *testing.T) {
 				file.Type = "xai"
 			case "disabled file":
 				file.Disabled = true
-			case "denied credential", "outside allowlist":
-				rule := billing.RouteRule{DeniedCredentialIDs: []string{billing.CredentialFingerprint(file.ID)}}
-				if tc.name == "outside allowlist" {
-					rule = billing.RouteRule{CredentialIDs: []string{billing.CredentialFingerprint("another-file")}}
-				}
-				if _, err := app.store.CreateRoute(billing.Route{Name: "reset access", Rule: rule}, []string{billing.CallerScope(accountTestKeyA)}); err != nil {
-					t.Fatal(err)
-				}
 			}
 			hostCalls, reads, consumes := 0, 0, 0
 			app.SetHostCaller(func(method string, payload any) (json.RawMessage, error) {
@@ -780,24 +754,6 @@ func TestAuthQuotaReset(t *testing.T) {
 					return nil, nil
 				}
 			})
-			access, _ := app.apiKeyViewAccess(req)
-			var profile accountProfileResponse
-			if err := json.Unmarshal(app.accountProfile(access).Body, &profile); err != nil {
-				t.Fatal(err)
-			}
-			if profile.CanResetAuthQuota != (allowed && access.Tracked) {
-				t.Fatalf("incorrect reset permission: %+v", profile)
-			}
-			if tc.name == "masked name" {
-				var files authFileListResponse
-				if err := json.Unmarshal(app.authFiles(access).Body, &files); err != nil {
-					t.Fatal(err)
-				}
-				if files.Files[0].Name == file.Name {
-					t.Fatal("file name was not masked")
-				}
-				req.Query.Set("auth_name", files.Files[0].Name)
-			}
 			raw, err := app.handleManagement(mustMarshal(t, req))
 			if err != nil {
 				t.Fatal(err)
@@ -822,9 +778,6 @@ func TestAuthQuotaReset(t *testing.T) {
 			}
 			if strings.Contains(string(response.Body), "dummy-upstream-token") {
 				t.Fatal("response leaked credentials")
-			}
-			if tc.name != "admin" && !strings.Contains(response.Headers.Get("Cache-Control"), "no-store") {
-				t.Fatal("resource response is cacheable")
 			}
 		})
 	}

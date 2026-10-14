@@ -1,4 +1,13 @@
 {
+  "ui.usage_history": "Usage history",
+  "ui.in_flight_requests": "In-flight requests",
+  "ui.metric_remaining": "{v0} remaining",
+  "ui.used_of_limit": "Used {v0} of {v1}",
+  "ui.no_subscription_quota_limit": "No subscription quota limit",
+  "ui.usage_sign_in_description": "Enter your API key to see your quota, spending, and usage.",
+  "ui.management_sign_in_description": "Sign in with your management key to manage billing.",
+  "ui.usage_overview": "Overview",
+  "ui.models_and_access": "Models & access",
   "ui.api_key_billing": "API Key Billing",
   "ui.choose_an_access_method": "Choose an access method",
   "ui.switch_theme": "Switch theme",

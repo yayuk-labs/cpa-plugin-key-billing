@@ -1,15 +1,13 @@
 async function setLoginMode(mode, preserveError) {
   const ticket = ++loginModeRequest;
-  loginMode = mode === "account" ? "account" : "admin";
+  loginMode = embedded ? "admin" : "account";
   const route = pageRoute();
   const tab = route.role === loginMode ? route.tab : loginMode === "account" ? "subscription" : "keys";
   writePageRoute(loginMode, tab);
   const account = loginMode === "account";
   setText(document.querySelector("title"), m(account ? "ui.api_key_usage" : "ui.api_key_billing"));
-  $("gate-mode-admin").classList.toggle("active", !account);
-  $("gate-mode-admin").setAttribute("aria-selected", String(!account));
-  $("gate-mode-account").classList.toggle("active", account);
-  $("gate-mode-account").setAttribute("aria-selected", String(account));
+  setText($("gate-title"), m(account ? "ui.api_key_usage" : "ui.api_key_billing"));
+  setText($("gate-description"), m(account ? "ui.usage_sign_in_description" : "ui.management_sign_in_description"));
   setText($("gate-key-label"), account ? "API Key" : m("ui.management_key"));
   $("gate-username").value = account ? "api-key" : "administrator";
   setTextAttribute($("gate-key"), "placeholder", account ? m("ui.enter_api_key") : m("ui.enter_management_key"));
@@ -78,8 +76,6 @@ $("gate-form").onsubmit = (event) => {
   event.preventDefault();
   submitLogin();
 };
-$("gate-mode-admin").onclick = () => setLoginMode("admin");
-$("gate-mode-account").onclick = () => setLoginMode("account");
 
 async function startAdmin(key) {
   setText(document.querySelector("title"), m("ui.api_key_billing"));
@@ -122,13 +118,14 @@ async function startAccount(key) {
 function restoreRolePreferences(role) {
   const account = role === "account";
   const prefix = account ? "account-" : "";
-  // Dynamic choices must exist before the first filtered request, even
-  // when the current result no longer contains the stored selection.
-  for (const id of ["request-event-model", "request-event-source", "error-model", "error-source", "error-type"])
-    restoreChoice(role, prefix + id, "", true);
-  restoreChoice(role, prefix + "request-event-status", "");
-  restoreChoice(role, prefix + "auth-enabled-only", true);
-  restoreChoice(role, prefix + "auth-provider", "");
+  if (!account) {
+    // Restore filters before the first request.
+    for (const id of ["request-event-model", "request-event-source", "error-model", "error-source", "error-type"])
+      restoreChoice(role, id, "", true);
+    restoreChoice(role, "request-event-status", "");
+    restoreChoice(role, "auth-enabled-only", true);
+    restoreChoice(role, "auth-provider", "");
+  }
   setPrivacyMask(role, viewPreference(role, prefix + "privacy-mask", false));
   if (!account) {
     restoreChoice(role, "analysis-key", "", true);
@@ -143,22 +140,23 @@ function restoreRolePreferences(role) {
   if (rolling) sharedTimeChoices[role][rolling.unit] = rolling.value;
   const defaultDimension = account ? "models" : "api_keys";
   const dimension = viewPreference(role, "analysis-dimension", defaultDimension);
-  const allowedDimensions = account ? ["models", "sources"] : ["api_keys", "models", "sources"];
+  const allowedDimensions = account ? ["models"] : ["api_keys", "models", "sources"];
   analysisDimensions[role] = allowedDimensions.includes(dimension) ? dimension : defaultDimension;
   const metric = viewPreference(role, "analysis-metric", "total_tokens");
   analysisMetrics[role] = Object.hasOwn(DISTRIBUTION_METRICS, metric) ? metric : "total_tokens";
   updateSharedTimeControl(account);
-  updateFilterClearButton($(prefix + "request-events-filter-clear"));
-  updateFilterClearButton($(prefix + "errors-filter-clear"));
+  if (!account) {
+    updateFilterClearButton($("request-events-filter-clear"));
+    updateFilterClearButton($("errors-filter-clear"));
+  }
 }
 
 function resetRoleControls(role) {
   const account = role === "account";
-  const prefix = account ? "account-" : "";
   closeSharedTimePopover(account);
   setPrivacyMask(role, false);
-  $(prefix + "auth-search").value = "";
   if (!account) {
+    $("auth-search").value = "";
     $("key-filter").value = "";
     $("keys-include-deleted").checked = false;
     $("price-filter").value = "";
@@ -265,9 +263,8 @@ function setAccountTab(tab) {
   });
   $("account-page-tab-select").value = accountTab;
   for (const name of ACCOUNT_TAB_IDS) { $("account-tab-" + name).classList.toggle("hidden", name !== accountTab); }
-  $("account-shared-time-filter").classList.toggle("hidden", !["analysis", "request-events", "errors"].includes(accountTab));
-  $("account-events-export").classList.toggle("hidden", !["request-events", "errors"].includes(accountTab));
-  if (!["analysis", "request-events", "errors"].includes(accountTab)) { closeSharedTimePopover(true); }
+  $("account-shared-time-filter").classList.toggle("hidden", accountTab !== "history");
+  if (accountTab !== "history") { closeSharedTimePopover(true); }
   schedulePageTabLayout();
 }
 
@@ -325,7 +322,7 @@ function updateThemeButtons() {
 
 function updateThemedVisuals() {
   updateThemeButtons();
-  if (currentRole && activeTab(currentRole === "account") === "analysis") renderAnalysis(currentRole === "account");
+  if (currentRole && currentPage()?.query === "analysis") renderAnalysis(currentRole === "account");
 }
 
 for (const button of document.querySelectorAll('[data-page-action="refresh"]')) {
@@ -454,7 +451,7 @@ for (const role of ["admin", "account"]) {
 }
 
 (async function () {
-  const panelKey = readPanelKey();
+  const panelKey = embedded ? readPanelKey() : "";
   document.querySelectorAll('input[type="checkbox"]').forEach((input) => {
     const placeholder = document.createTextNode("");
     input.replaceWith(placeholder);

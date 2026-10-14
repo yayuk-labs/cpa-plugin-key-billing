@@ -1157,7 +1157,7 @@ run_target() {
   local target_dir="$run_dir/target-$index"
   local host_dir="$target_dir/host"
   local runtime_dir="$target_dir/runtime"
-  local api_key_json plugins_file prompt account_access_file account_prices_file account_events_file
+  local api_key_json plugins_file prompt account_access_file account_prices_file account_analysis_file diagnostic
   local client upstream stream endpoint body mode extension response_file request_events_file
   local client_label upstream_label mode_label request_number requested_model billing_model upstream_models model_id
   local model_case case_name actual_upstream_model expected_source expected_uncached expected_cache_write
@@ -1435,12 +1435,12 @@ run_target() {
   fi
   account_access_file="$runtime_dir/account-access.json"
   account_prices_file="$runtime_dir/account-prices.json"
-  account_events_file="$runtime_dir/account-events.json"
+  account_analysis_file="$runtime_dir/account-analysis.json"
   account_call "$port" "/v0/resource/plugins/cpa-key-billing/profile" >"$account_access_file"
   account_call "$port" "/v0/resource/plugins/cpa-key-billing/subscription" >"$runtime_dir/account-subscription.json"
   account_call "$port" "/v0/resource/plugins/cpa-key-billing/routing" >"$runtime_dir/account-routing.json"
   account_call "$port" "/v0/resource/plugins/cpa-key-billing/prices?model=gpt-5.6-sol" >"$account_prices_file"
-  account_call "$port" "/v0/resource/plugins/cpa-key-billing/events?limit=100" >"$account_events_file"
+  account_call "$port" "/v0/resource/plugins/cpa-key-billing/analysis" >"$account_analysis_file"
   if ! jq -e '
       .tracked == true and
       has("identity") and (has("subscription") | not) and (has("credentials") | not) and
@@ -1448,18 +1448,26 @@ run_target() {
       (has("routing") | not) and (has("bindings") | not)
     ' "$account_access_file" >/dev/null ||
     ! jq -e 'has("subscription") and has("concurrency") and (has("credentials") | not)' "$runtime_dir/account-subscription.json" >/dev/null ||
-    ! jq -e '(.models | length) == 0 and (.credentials | length) == 0 and .routing_valid == true and (.warnings | length) == 0' "$runtime_dir/account-routing.json" >/dev/null ||
+    ! jq -e '(.models | length) == 0 and (has("credentials") | not) and (has("denied_credentials") | not) and .routing_valid == true and (.warnings | length) == 0' "$runtime_dir/account-routing.json" >/dev/null ||
     ! jq -e 'length > 0 and all(.[]; has("model_id") and has("source") and (has("operation") | not))' \
       "$account_prices_file" >/dev/null ||
     ! jq -e --argjson expected "$expected_requests" '
-      .total == $expected and (.entries | length) == $expected and
-      all(.entries[]; .scope == "" and (has("auth_index") | not) and has("cost")) and
-      any(.entries[]; has("executor_type")) and any(.entries[]; has("source"))
-    ' "$account_events_file" >/dev/null; then
+      .summary.requests == $expected and (.usage_distribution.api_keys | length) == 0 and
+      (.usage_distribution.sources | length) == 0
+    ' "$account_analysis_file" >/dev/null; then
     echo "CLIProxyAPI ${host_label} 的 API Key 自助查询范围或响应字段不正确。" >&2
     return 1
   fi
-  log_step "API Key 自助查询已验证：仅返回当前 Key 的 35 条请求事件"
+  for diagnostic in events errors auth-files auth-files/quota auth-files/quota/reset; do
+    http_status="$(curl -sS --max-time 30 -H "Authorization: Bearer e2e-downstream-key" \
+      --output "$runtime_dir/denied-diagnostic.json" --write-out '%{http_code}' \
+      "http://127.0.0.1:$port/v0/resource/plugins/cpa-key-billing/$diagnostic")"
+    if [[ "$http_status" != "404" ]]; then
+      echo "API Key 可访问管理员诊断接口 $diagnostic：HTTP $http_status" >&2
+      return 1
+    fi
+  done
+  log_step "API Key 自助查询已验证：仅返回当前 Key 的用量统计，管理员诊断接口不可访问"
   management_call GET "$port" "/v0/management/plugins/cpa-key-billing/analysis" >"$runtime_dir/analysis.json"
   if ! jq -e '
       .usage_distribution.models as $models |

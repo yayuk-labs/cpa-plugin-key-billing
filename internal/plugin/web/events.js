@@ -541,7 +541,7 @@ async function exportEvents(kind, account) {
   }
 }
 
-for (const account of [false, true]) {
+for (const account of [false]) {
   const role = account ? "account" : "admin";
   const prefix = account ? "account-" : "";
   bindPagedListFilters(
@@ -562,3 +562,6 @@ for (const account of [false, true]) {
   bindSharedTimeControls(account);
   updateSharedTimeControl(account);
 }
+
+bindSharedTimeControls(true);
+updateSharedTimeControl(true);

@@ -28,14 +28,15 @@ function readPanelKey() {
 
 const embedded = window.parent !== window;
 document.body.classList.toggle("embedded", embedded);
+document.body.classList.toggle("usage-page", !embedded);
 const ADMIN_TAB_IDS = ["keys", "analysis", "request-events", "errors", "auth-files", "settings"];
-const ACCOUNT_TAB_IDS = ["subscription", "analysis", "request-events", "errors", "auth-files"];
+const ACCOUNT_TAB_IDS = ["subscription", "history", "details"];
 const PAGE_ROUTE_KEY = "cpa-key-billing.route.v1." + (embedded ? "embedded" : "standalone");
 
 function parsePageRoute(value) {
   const [role, tab] = value.split("/");
-  if (role === "account") return { role, tab: ACCOUNT_TAB_IDS.includes(tab) ? tab : "subscription" };
-  if (role === "admin") return { role, tab: ADMIN_TAB_IDS.includes(tab) ? tab : "keys" };
+  if (!embedded && role === "account") return { role, tab: ACCOUNT_TAB_IDS.includes(tab) ? tab : "subscription" };
+  if (embedded && role === "admin") return { role, tab: ADMIN_TAB_IDS.includes(tab) ? tab : "keys" };
   return null;
 }
 
@@ -46,7 +47,7 @@ function pageRoute() {
     const stored = parsePageRoute(sessionStorage.getItem(PAGE_ROUTE_KEY) || "");
     if (stored) return stored;
   } catch (_) {}
-  return { role: "admin", tab: "keys" };
+  return embedded ? { role: "admin", tab: "keys" } : { role: "account", tab: "subscription" };
 }
 
 function writePageRoute(role, tab) {

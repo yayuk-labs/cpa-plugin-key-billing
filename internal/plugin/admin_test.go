@@ -590,9 +590,12 @@ func TestConfigCredentialSyncSurvivesRestartAndRollsBack(t *testing.T) {
 	response = callAccount(t, app, routeRouting, accountTestKeyA, nil)
 	var routing accountRoutingResponse
 	if err := json.Unmarshal(response.Body, &routing); err != nil || response.StatusCode != http.StatusOK ||
-		!routing.RoutingValid || len(routing.Credentials) != 1 || routing.Credentials[0].Name != billing.PreviewKey(rawKey) ||
-		routing.Credentials[0].Status != "active" || len(routing.Warnings) != 0 {
+		!routing.RoutingValid || len(routing.Warnings) != 0 {
 		t.Fatalf("routing after restart = %+v, response = %+v, err = %v", routing, response, err)
+	}
+	response = callManagement(t, app, http.MethodGet, routeCredentials, nil, nil)
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(response.Body), billing.PreviewKey(rawKey)) {
+		t.Fatalf("admin credentials after restart = %+v", response)
 	}
 	if snapshot := app.store.ConfigCredentials(); len(snapshot) != 2 || snapshot[removed].KeyPreview != "" || !snapshot[removed].Disabled {
 		t.Fatalf("persisted config snapshot = %+v", snapshot)
